@@ -8,59 +8,58 @@ This method wraps `run(R, g, n_df)` constructing `R`, `g`, and `n_df` from its a
 
 ### Additional keyword arguments
 
-- `bins_y` optionally specifies the discrete levels of `y`
-- `bins_x` optionally specifies the discrete levels of `x`
+- `ylevels` optionally specifies the discrete levels of `y`
+- `xlevels` optionally specifies the discrete levels of `x`
 - `method = :expand` specifies how the discrete deconvolution problem is obtained. By
-  default, the `train` and `data` sets are discretized using `discr_y` and `discr_x` with
+  default, the `train` and `data` sets are discretized using `ydiscr` and `xdiscr` with
   the `factor` multiple of bins in `y`. If `method = :reduce`, `data` and `train` can be
   discretized beforehand. The fit is afterwards reduced by the `factor`.
 - `factor = 1` is the factor of the regularization strength; `n_df = dim(f)` is enforced
   by the `method`.
 - `keepdim = true` specifies, if a reduced or expanded result is projected back to the
   original dimensionality.
-- `discr_y::Discretization = nothing` discretizes `y` before the fit. Example:
-  `discr_y = Data.Gaussian.discretization_y()`
-- `discr_x::Function = nothing` with the signature `(d::DataFrame, t::DataFrame) ->
-  (data[x]::Array, train[x]::Array, bins_x::Array)` discretizes `d` based on `t`, creating
-  the `x` column in `data` and `train`. Example: `discr_x = Unfold.run_treediscr_x(y,
-  num_clusters)`
+- `ydiscr::Discretization = nothing` discretizes `y` before the fit. Example:
+  `ydiscr = Data.Gaussian.discretization_y()`
+- `xdiscr::Function = nothing` with the signature `(d::DataFrame, t::DataFrame) ->
+  (data[x]::Array, train[x]::Array, xlevels::Array)` discretizes `d` based on `t`, creating
+  the `x` column in `data` and `train`. Example: `xdiscr = Unfold.run_treediscr(y, num_clusters)`
 """
 function run{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame, y::Symbol, x::Symbol;
                                          method::Symbol=:expand, factor::Int64=1, keepdim::Bool=true,
-                                         discr_y::Union{Discretization, Void} = nothing,
-                                         discr_x::Union{Function, Void} = nothing,
-                                         bins_y::AbstractArray{T1, 1} = discr_y == nothing ? sort(unique(train[y])) : Float64[],
-                                         bins_x::AbstractArray{T2, 1} = discr_x == nothing ? sort(unique(train[x])) : Float64[],
+                                         ydiscr::Union{Discretization, Void} = nothing,
+                                         xdiscr::Union{Function, Void} = nothing,
+                                         ylevels::AbstractArray{T1, 1} = ydiscr == nothing ? sort(unique(train[y])) : Float64[],
+                                         xlevels::AbstractArray{T2, 1} = xdiscr == nothing ? sort(unique(train[x])) : Float64[],
                                          inspect::Union{Function, Void} = nothing,
                                          kwargs...)
     
     # discretize data with expanded levels
     if method == :expand && factor > 1
-        if discr_y == nothing || discr_x == nothing
-            error("RUN arguments 'discr_y' and 'discr_x' have to be set for method = :expand")
-        elseif length(unique(train[y])) <= length(levels(discr_y))
+        if ydiscr == nothing || xdiscr == nothing
+            error("RUN arguments 'ydiscr' and 'xdiscr' have to be set for method = :expand")
+        elseif length(unique(train[y])) <= length(levels(ydiscr))
             warn("RUN input data may be discrete in $y - expansion will have no effect")
         end
-        discr_y = Discretization(discr_y, num_bins = factor * length(levels(discr_y)))
+        ydiscr = Discretization(ydiscr, num_bins = factor * length(levels(ydiscr)))
     elseif method != :reduce && factor > 1
         error("RUN method = :$method is not available")
     elseif factor < 1
         error("RUN factor has to be >= 1")
     end
-    if discr_y != nothing
-        bins_y = levels(discr_y)
-        # info("Discretizing data for RUN with $(length(bins_y)) bins in $y")
-        train = discretize(train, discr_y)
+    if ydiscr != nothing
+        ylevels = levels(ydiscr)
+        # info("Discretizing data for RUN with $(length(ylevels)) bins in $y")
+        train = discretize(train, ydiscr)
     end
-    if discr_x != nothing
+    if xdiscr != nothing
         # info("Discretizing RUN data in $x")
-        data[x], train[x], bins_x = discr_x(data,  train)
-        # info("Obtained $(length(bins_x)) bins in $x")
+        data[x], train[x], xlevels = xdiscr(data,  train)
+        # info("Obtained $(length(xlevels)) bins in $x")
     end
     
     # estimate transfer and spectrum of observation
-    R = empiricaltransfer(train, y, x, ylevels = bins_y, xlevels = bins_x)
-    g = histogram(data, x, levels = bins_x)[x]
+    R = empiricaltransfer(train, y, x, ylevels = ylevels, xlevels = xlevels)
+    g = histogram(data, x, levels = xlevels)[x]
     
     # advice from [blobel2002unfolding]: n_df is half the dimensionality of y.
     # After reducing the effective number of degrees of freedom to this value, combine
@@ -73,14 +72,14 @@ function run{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame, y::S
     
     # post-processing for inspection and return value: expansion or reduction
     pp = f ->  if method == :expand && !keepdim
-                   DataFrame(level = bins_y; (y, f))
+                   DataFrame(level = ylevels; (y, f))
                else # method == :reduce || keepdim
-                   cdf = _combine(f, factor, bins_y, y)
+                   cdf = _combine(f, factor, ylevels, y)
                    if method == :expand || !keepdim
                        cdf
                    else # method == :reduce && keepdim
-                       DataFrame(level = bins_y;
-                                 (y, vcat([ repmat([i], factor) for i in cdf[y] ]...)[1:length(bins_y)]))
+                       DataFrame(level = ylevels;
+                                 (y, vcat([ repmat([i], factor) for i in cdf[y] ]...)[1:length(ylevels)]))
                    end
                end
     ppinspect = inspect
@@ -259,25 +258,25 @@ end
 # Combine neighboring bins into one bin. n gives the number of neighbors that are combined.
 # If levels and target are provided, return a histogram DataFrame as result.
 function _combine{T <: Number}(y_vec::AbstractArray{T,1}, n::Int64,
-                               bins_y::AbstractArray{Float64,1}, y::Symbol)
-    maxindex  = length(bins_y) - n + 1
+                               ylevels::AbstractArray{Float64,1}, y::Symbol)
+    maxindex  = length(ylevels) - n + 1
     indices   = 1:n:maxindex
-    remainder = length(bins_y) % n
+    remainder = length(ylevels) % n
     if remainder > 0
         indices = vcat(indices, maxindex + 1)
     end
-    return DataFrame(level = bins_y[indices];
+    return DataFrame(level = ylevels[indices];
                      (y, map(i -> sum(y_vec[i:min(length(y_vec), i + n - 1)]), indices))) # combined bins
 end
 
 """
-    run_treediscr_x(y, J)
+    run_treediscr(y, J)
 
-Return a function `discr_x` that can be used as an argument to `run`. The returned function
+Return a function `xdiscr` that can be used as an argument to `run`. The returned function
 discretizes the observables of a data set with a decision tree trained to predict `y`, which
-has `J` leaves (also see `TreeDiscretization`.
+has `J` leaves (also see `TreeDiscretization`).
 """
-run_treediscr_x(y::Symbol, J::Int) = (data, train) -> begin
+run_treediscr(y::Symbol, J::Int) = (data, train) -> begin
     discr = TreeDiscretization(train, y, J)
     (discretize(data, discr), discretize(train, discr), levels(discr))
 end # TODO move to ml.jl

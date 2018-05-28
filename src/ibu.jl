@@ -8,18 +8,18 @@ This method wraps `ibu(R, g)` constructing `R` and `g` from the events in the Da
 
 ### Additional keyword arguments
 
-- `bins_y` optionally specifies the discrete levels of `y`
-- `bins_x` optionally specifies the discrete levels of `x`
+- `ylevels` optionally specifies the discrete levels of `y`
+- `xlevels` optionally specifies the discrete levels of `x`
 """
 function ibu{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame,
                                          y::Symbol, x::Symbol;
-                                         bins_y::AbstractArray{T1, 1} = sort(unique(train[y])),
-                                         bins_x::AbstractArray{T2, 1} = sort(unique(train[x])),
+                                         ylevels::AbstractArray{T1, 1} = sort(unique(train[y])),
+                                         xlevels::AbstractArray{T2, 1} = sort(unique(train[x])),
                                          kwargs...)
     
     # estimate response and observable distribution
-    R = empiricaltransfer(train, y, x, xlevels = bins_x, ylevels = bins_y)
-    g = histogram(data, x, levels = bins_x)[x]
+    R = empiricaltransfer(train, y, x, xlevels = xlevels, ylevels = ylevels)
+    g = histogram(data, x, levels = xlevels)[x]
     
     return ibu(R, g; kwargs...)
     

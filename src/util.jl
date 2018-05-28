@@ -36,19 +36,19 @@ type Discretization
     name::Symbol
     min::Number
     max::Number
-    num_bins::Int64
+    num_levels::Int64
     edges::StepRangeLen{Float64}
     scaling::Function
     
-    function Discretization(name::Symbol, min::Number, max::Number, num_bins::Int64, scaling::Function=identity)
+    function Discretization(name::Symbol, min::Number, max::Number, num_levels::Int64, scaling::Function=identity)
         minval = scaling(min)
         maxval = scaling(max)
-        new(name, min, max, num_bins,  minval:((maxval - minval) / num_bins):maxval,  scaling)
+        new(name, min, max, num_levels,  minval:((maxval - minval) / num_levels):maxval,  scaling)
     end
 end
 
-Discretization(name::Symbol, min::Number, max::Number, num_bins::Int64, logscale::Bool=false) =
-        Discretization(name, min, max, num_bins, _scaling(logscale))
+Discretization(name::Symbol, min::Number, max::Number, num_levels::Int64, logscale::Bool=false) =
+        Discretization(name, min, max, num_levels, _scaling(logscale))
 
 _scaling(logscale::Bool) = logscale ? log10 : identity
 
@@ -56,14 +56,14 @@ _scaling(logscale::Bool) = logscale ? log10 : identity
     Discretization(d; kwargs...)
 
 Copy the `Discretization` object `d`, optionally changing values in the copy.
-The keyword arguments are `name`, `min`, `max`, `num_bins` and `logscale`.
+The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
 
 If `d` is of type `Dict{Any,Any}` (as obtained from a YAML configuration), create
 a discretization from that configuration; keyword arguments apply.
 """
 function Discretization(d::Union{Discretization, Dict{Any,Any}}; kwargs...)
     argdict = Dict{Symbol,Any}(kwargs)
-    if !isempty(setdiff(keys(argdict), [:name, :min, :max, :num_bins, :logscale]))
+    if !isempty(setdiff(keys(argdict), [:name, :min, :max, :num_levels, :logscale]))
         throw(MethodError(Discretization(d; kwargs...)))
     end
     Discretization(_args_Discretization(d, argdict)...)
@@ -73,21 +73,21 @@ _args_Discretization(d::Dict{Any,Any}, argdict::Dict{Symbol,Any}) =
      Symbol(haskey(argdict, :name)     ? argdict[:name]     : d["name"]),
     Float64(haskey(argdict, :min)      ? argdict[:max]      : d["min"]),
     Float64(haskey(argdict, :max)      ? argdict[:max]      : d["max"]),
-      Int64(haskey(argdict, :num_bins) ? argdict[:num_bins] : d["num_bins"]),
+      Int64(haskey(argdict, :num_levels) ? argdict[:num_levels] : d["num_levels"]),
        Bool(haskey(argdict, :logscale) ? argdict[:logscale] : get(d, "logscale", false))
 
 _args_Discretization(d::Discretization, argdict::Dict{Symbol,Any}) =
      Symbol(get(argdict, :name,     d.name)),
     Float64(get(argdict, :min,      d.min)),
     Float64(get(argdict, :max,      d.max)),
-      Int64(get(argdict, :num_bins, d.num_bins)),
+      Int64(get(argdict, :num_levels, d.num_levels)),
    Function(haskey(argdict, :logscale) ? _scaling(argdict[:logscale]) : d.scaling)
 
 """
     Discretization(configfile, key=""; kwargs...)
 
 Read the discretization from a YAML configuration file, optionally changing values.
-The keyword arguments are `name`, `min`, `max`, `num_bins` and `logscale`.
+The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
 """
 function Discretization(configfile::AbstractString, key::AbstractString=""; kwargs...)
     c = YAML.load_file(configfile)

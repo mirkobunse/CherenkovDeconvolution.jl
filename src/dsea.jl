@@ -39,7 +39,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
               maxiter::Int64 = 1,
               epsilon::Float64 = 0.0,
               skconfig::String = "conf/sklearn/nb.yml",
-              bins::AbstractArray{Float64, 1} = sort(unique(train[target])),
+              ylevels::AbstractArray{Float64, 1} = sort(unique(train[target])),
               prior::Union{AbstractArray{Float64, 1}, Symbol} = :uniform,
               alpha::Union{Float64, Function} = 1.0,
               smoothing::Symbol = :none,
@@ -49,8 +49,8 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
               calibrate::Bool = false,
               kwargs...)
     
-    m = length(bins)   # number of classes
-    n = size(train, 1) # number of training examples
+    m = length(ylevels) # number of classes
+    n = size(train, 1)  # number of training examples
     
     if typeof(prior) <: Symbol && !in(prior, [:uniform, :trainingset])
         error("Illegal value of parameter `prior`: $prior")
@@ -70,7 +70,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
     end
     
     # initial spectrum
-    spec = histogram(train, target; levels = bins) # trainingset prior
+    spec = histogram(train, target; levels = ylevels) # trainingset prior
     wfactor = spec[target] ./ n # weight factor based on training set spectrum (for weighting fix)
     if typeof(prior) <: Symbol && prior == :uniform
         spec[target] = repmat([size(data, 1) / size(spec, 1)], size(spec, 1))
@@ -95,7 +95,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         
         # predict data and reconstruct spectrum
         preddata = trainpredict(data, traindf, skconfig, target, w, calibrate = calibrate) # from sklearn.jl
-        spec[target] = _dsea_reconstruct(preddata, bins)
+        spec[target] = _dsea_reconstruct(preddata, ylevels)
         
         # find and apply step size
         pk = spec[target] - lastspec # direction
@@ -145,7 +145,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
 end
 
 # spectral reconstruction: sum of confidences in each bin
-function _dsea_reconstruct{T<:Number}(preddata::DataFrame, bins::AbstractArray{T, 1})
+function _dsea_reconstruct{T<:Number}(preddata::DataFrame, ylevels::AbstractArray{T, 1})
     bincontent = (bin::Float64) -> begin # obtain the column of the bin
         col = Symbol(bin)
         if in(col, names(preddata))
@@ -154,6 +154,6 @@ function _dsea_reconstruct{T<:Number}(preddata::DataFrame, bins::AbstractArray{T
             0.0
         end
     end
-    return convert(Array{Float64, 1}, map(bincontent, bins))
+    return convert(Array{Float64, 1}, map(bincontent, ylevels))
 end
 
