@@ -20,7 +20,7 @@
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
 info("ScikitLearn utilities are available in CherenkovDeconvolution")
-using DataFrames, YAML, ScikitLearn
+using YAML, ScikitLearn
 using ScikitLearnBase.weighted_sum, PyCall
 
 @sk_import naive_bayes : GaussianNB

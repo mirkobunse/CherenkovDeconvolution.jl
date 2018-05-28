@@ -1,1 +1,10 @@
-julia 0.6
+julia      0.6 0.7-
+DataFrames 0.10.1-
+Requires   0.4.3-
+
+MLDataUtils
+YAML
+Discretizers
+Polynomials
+Distances
+

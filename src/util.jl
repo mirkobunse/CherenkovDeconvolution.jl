@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-using DataFrames, MLDataUtils, YAML, Discretizers, Polynomials, Distances
+using MLDataUtils, YAML, Discretizers, Polynomials, Distances
 
 
 """
