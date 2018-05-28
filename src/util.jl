@@ -19,7 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-using MLDataUtils, YAML, Discretizers, Polynomials, Distances
+using YAML, Discretizers, Polynomials, Distances
+
+export Discretization, levels, discretize, discretize!
 
 
 """
@@ -186,10 +188,9 @@ function empiricaltransfer{T1 <: Number, T2 <: Number}(
     end
     
     if normalize
-        return normalizetransfer!(R)
-    else
-        return R
+        normalizetransfer!(R)
     end
+    return R
     
 end
 
@@ -341,42 +342,6 @@ function normalizepdf!(a::AbstractArray...)
 end
 _WARN_NORMALIZE = true
 
-"""
-    subsample_uniformness([rng = GLOBAL_RNG,] df, y, u)
-
-Subsample DataFrame `df` to attain the uniformness factor `u` in the `y` column.
-Use `rng` to shuffle the subsample.
-
-### Keyword arguments
-
-- `ylevels = nothing` is an optional array of unique values in the `y` column
-- `auxdf = nothing` is an auxiliary DataFrame to be used when `df` is small
-- `shuffle = true` specifies, if shuffling should be performed
-"""
-subsample_uniformness(df::DataFrame, y::Symbol, u::Float64; kwargs...) =
-    subsample_uniformness(Base.GLOBAL_RNG, df, y, u; kwargs...)
-
-function subsample_uniformness(rng::AbstractRNG,
-                               df::DataFrame, y::Symbol, u::Float64;
-                               ylevels::AbstractArray{Float64, 1} = unique(df[y]),
-                               auxdf::DataFrame = DataFrame(),
-                               shuffle::Bool = true)
-    
-    # minimum bin size in original histogram = size of all bins in fully uniform subsample
-    histo      = histogram(df[y], ylevels)           # original histogram
-    adf        = vcat(df, auxdf)                     # combined training set
-    minbinsize = minimum(histogram(adf[y], ylevels)) # min bin size in adf
-    
-    # bin size after subsampling
-    fbinsize = x -> minbinsize + (1 - u)*(x - minbinsize) # function
-    binsizes = convert.(Int64, round.(map(fbinsize, histo))) # mapping
-    
-    # subsample  data set
-    adf = vcat([ adf[adf[y] .== binvalue, :][1:binsize, :]
-                 for (binvalue, binsize) in zip(ylevels, binsizes) ]...)
-    return shuffle ? adf[randperm(rng, size(adf, 1)), :] : adf # shuffle
-    
-end
 
 """
     chi2s(a, b)

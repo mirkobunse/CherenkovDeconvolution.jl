@@ -25,9 +25,6 @@ module CherenkovDeconvolution
 using DataFrames, Requires
 
 
-# export ...
-
-
 # utilities
 include("util.jl")
 
