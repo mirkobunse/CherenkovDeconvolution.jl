@@ -18,7 +18,7 @@ function ibu{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame,
                                          kwargs...)
     
     # estimate response and observable distribution
-    R = empiricaltransfer(train, y, x, xlevels = xlevels, ylevels = ylevels)
+    R = empiricaltransfer(train[y], train[x], xlevels = xlevels, ylevels = ylevels)
     g = histogram(data[x], xlevels)
     
     return ibu(R, g; kwargs...)

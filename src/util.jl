@@ -147,40 +147,41 @@ function histogram{T <: Number}(arr::AbstractArray{T,1}, levels::AbstractArray{T
         end
         sort!(df, cols=[:level])
     end
-    return convert(Array{T,1}, df[:n])
+    return convert(Array{Int64,1}, df[:n])
     
 end
 
 
 """
-    empiricaltransfer(df, x, y; normalize=true)
+    empiricaltransfer(y, x; normalize=true)
 
-Empirically estimate the transfer matrix from the `y` column to the `x` column in the
-DataFrame `df` where both columns are discrete, i.e., they have a limited number of unique
-numerical values.
+Empirically estimate the transfer matrix from the `y` array to the `x` array, both of which
+are discrete, i.e., they have a limited number of unique values.
 
-The returned matrix `R` is normalized by default so that `x_vec = R * y_vec` holds where
-- `R = empiricaltransfer(df, x, y)`
-- `x_vec = histogram(df, x)`
-- `y_vec = histogram(df, y)`
+The returned matrix `R` is normalized by default so that `xhist = R * yhist` holds where
+- `R = empiricaltransfer(y, x)`
+- `xhist = histogram(x)`
+- `yhist = histogram(y)`
 
 If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
 """
 function empiricaltransfer{T1 <: Number, T2 <: Number}(
-            df::DataFrame, y::Symbol, x::Symbol;
+            y::AbstractArray{T1, 1}, x::AbstractArray{T2, 1};
             normalize::Bool = true,
-            xlevels::AbstractArray{T1, 1} = sort(unique(df[x])),
-            ylevels::AbstractArray{T2, 1} = sort(unique(df[y])))
+            ylevels::AbstractArray{T2, 1} = sort(unique(y)),
+            xlevels::AbstractArray{T1, 1} = sort(unique(x)))
+    
+    # TODO test same length
     
     # count transfer occurences for each combination of levels
-    counts = aggregate(hcat(df[:, [y, x]], DataFrame(c = ones(size(df, 1)))),
-                       [y, x], sdf -> size(sdf, 1))
+    counts = aggregate(DataFrame(y = y, x = x, c = ones(length(y))),
+                       [:y, :x], sdf -> size(sdf, 1))
     
     # convert to matrix
     R = zeros(Float64, (length(xlevels), length(ylevels)))
     for k in 1:size(counts, 1)
-        i = findfirst(ylevels, counts[k, y])
-        j = findfirst(xlevels, counts[k, x])
+        i = findfirst(ylevels, counts[k, :y])
+        j = findfirst(xlevels, counts[k, :x])
         R[j,i] = counts[k,end]
     end
     
