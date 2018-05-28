@@ -129,33 +129,27 @@ end
 
 
 """
-    histogram(arr; levels = nothing)
+    histogram(arr, levels = nothing)
 
-Return a histogram DataFrame with a `:level` column (unique values in `arr`) and an `:n`
-column (number of respective occurences). The expected unique values in `arr` are optionally
-supplied by the `level` argument.
+Return a histogram of `arr`, in which the unique values are optionally defined as `levels`.
 """
-function histogram{T <: Number}(arr::AbstractArray{T,1};
-                                levels::Union{AbstractArray{T,1},Void} = nothing)
+function histogram{T <: Number}(arr::AbstractArray{T,1}, levels::AbstractArray{T,1} = T[])
+    
+    # TODO replace by fit(Histogram, data[, weight][, edges]; closed=:right, nbins)
+    # http://juliastats.github.io/StatsBase.jl/stable/empirical.html#StatsBase.fit-Tuple{Type{StatsBase.Histogram},Vararg{Any,N}%20where%20N}
+    
     df = DataFrame(arr = arr, n = repmat([1], length(arr)))
     df = aggregate(df, :arr, sum) # compute histogram
     rename!(df, names(df), [:level, :n])
-    if levels != nothing
+    if !isempty(levels)
         for missing in setdiff(levels, df[:level])
             push!(df, [missing, 0])
         end
         sort!(df, cols=[:level])
     end
-    return df
+    return convert(Array{T,1}, df[:n])
+    
 end
-
-"""
-    histogram(df, col; levels = nothing)
-
-Return a histogram of the column `col` in the DataFrame `df`.
-"""
-histogram(df::AbstractDataFrame, col::Symbol; kwargs...) = rename(histogram(df[col]; kwargs...), :n, col)
-
 
 
 """
@@ -167,8 +161,8 @@ numerical values.
 
 The returned matrix `R` is normalized by default so that `x_vec = R * y_vec` holds where
 - `R = empiricaltransfer(df, x, y)`
-- `x_vec = Util.histogram(df, x)[x]`
-- `y_vec = Util.histogram(df, y)[y]`
+- `x_vec = histogram(df, x)`
+- `y_vec = histogram(df, y)`
 
 If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
 """
@@ -367,7 +361,7 @@ Use `rng` to shuffle the subsample.
 
 ### Keyword arguments
 
-- `levels = nothing` is an optional array of unique values in the `y` column
+- `ylevels = nothing` is an optional array of unique values in the `y` column
 - `auxdf = nothing` is an auxiliary DataFrame to be used when `df` is small
 - `shuffle = true` specifies, if shuffling should be performed
 """
@@ -376,22 +370,22 @@ subsample_uniformness(df::DataFrame, y::Symbol, u::Float64; kwargs...) =
 
 function subsample_uniformness(rng::AbstractRNG,
                                df::DataFrame, y::Symbol, u::Float64;
-                               levels::AbstractArray{Float64, 1} = unique(df[y]),
+                               ylevels::AbstractArray{Float64, 1} = unique(df[y]),
                                auxdf::DataFrame = DataFrame(),
                                shuffle::Bool = true)
     
     # minimum bin size in original histogram = size of all bins in fully uniform subsample
-    df_hist    = histogram(df, y, levels = levels)              # original histogram
-    adf        = vcat(df, auxdf)                                # combined training set
-    minbinsize = minimum(histogram(adf, y, levels = levels)[y]) # min bin size in adf
+    histo      = histogram(df[y], ylevels)           # original histogram
+    adf        = vcat(df, auxdf)                     # combined training set
+    minbinsize = minimum(histogram(adf[y], ylevels)) # min bin size in adf
     
     # bin size after subsampling
     fbinsize = x -> minbinsize + (1 - u)*(x - minbinsize) # function
-    binsizes = convert.(Int64, round.(map(fbinsize, df_hist[y]))) # mapping
+    binsizes = convert.(Int64, round.(map(fbinsize, histo))) # mapping
     
     # subsample  data set
     adf = vcat([ adf[adf[y] .== binvalue, :][1:binsize, :]
-                 for (binvalue, binsize) in zip(df_hist[:level], binsizes) ]...)
+                 for (binvalue, binsize) in zip(ylevels, binsizes) ]...)
     return shuffle ? adf[randperm(rng, size(adf, 1)), :] : adf # shuffle
     
 end

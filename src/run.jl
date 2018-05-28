@@ -59,7 +59,7 @@ function run{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame, y::S
     
     # estimate transfer and spectrum of observation
     R = empiricaltransfer(train, y, x, ylevels = ylevels, xlevels = xlevels)
-    g = histogram(data, x, levels = xlevels)[x]
+    g = histogram(data[x], xlevels)
     
     # advice from [blobel2002unfolding]: n_df is half the dimensionality of y.
     # After reducing the effective number of degrees of freedom to this value, combine

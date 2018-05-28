@@ -31,7 +31,7 @@ If provided, `inspect` is a function called in every iteration.
 - `returncontributions::Bool = false` makes the function return a tuple of estimated spectrum
   and the contribution of each individual item. By default, return the spectrum only.
 - `inspect::Function = nothing` is a function `(k::Int, alpha::Float64, chi2s::Float64,
-  spectrum::DataFrame) -> Any` called in every iteration.
+  spectrum::Array) -> Any` called in every iteration.
 
 Any other keyword argument is forwarded to the smoothing operation (if smoothing is applied).
 """
@@ -70,40 +70,39 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
     end
     
     # initial spectrum
-    spec = histogram(train, target; levels = ylevels) # trainingset prior
-    wfactor = spec[target] ./ n # weight factor based on training set spectrum (for weighting fix)
+    spec = histogram(train[target], ylevels) # trainingset prior
+    wfactor = spec ./ n # weight factor based on training set spectrum (for weighting fix)
     if typeof(prior) <: Symbol && prior == :uniform
-        spec[target] = repmat([size(data, 1) / size(spec, 1)], size(spec, 1))
+        spec = repmat([size(data, 1) / length(spec)], length(spec))
     elseif typeof(prior) <: AbstractArray
-        spec[target] = normalizepdf(prior) .* size(data, 1)
+        spec = normalizepdf(prior) .* size(data, 1)
     end
-    spec[target] = convert(Array{Float64,1}, spec[target]) # ensure type safety
+    spec = convert(Array{Float64,1}, spec) # ensure type safety
     if (inspect != nothing)
         inspect(0, NaN, NaN, spec)
     end
     
     # weight training examples according to prior
-    binweights = normalizepdf(  fixweighting ? spec[target] ./ wfactor : spec[target]  )
+    binweights = normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
     traindf = hcat(DataFrame(train[:, :]),
-                   DataFrame(w = max.([ binweights[findfirst(spec[:level] .== t)] for t in train[target] ], 1/size(train, 1))))
+                   DataFrame(w = max.([ binweights[findfirst(ylevels .== t)] for t in train[target] ], 1/size(train, 1))))
     w = names(traindf)[end] # name of weight column (hcat produced view with weights)
     
     # unfold
     preddata = DataFrame()
     for k in 1:maxiter
-        lastspec = spec[target]
+        lastspec = spec
         
         # predict data and reconstruct spectrum
         preddata = trainpredict(data, traindf, skconfig, target, w, calibrate = calibrate) # from sklearn.jl
-        spec[target] = _dsea_reconstruct(preddata, ylevels)
+        spec     = _dsea_reconstruct(preddata, ylevels)
         
         # find and apply step size
-        pk = spec[target] - lastspec # direction
+        pk     = spec - lastspec # direction
         alphak = (typeof(alpha) == Float64) ? alpha : alpha(k, pk, lastspec)
-        spec[target] = lastspec + alphak * pk
+        spec   = lastspec + alphak * pk
         
-        chi2s = chi2s(normalizepdf(lastspec),
-                           normalizepdf(spec[target])) # Chi Square distance between iterations
+        chi2s = chi2s(normalizepdf(lastspec), normalizepdf(spec)) # Chi Square distance between iterations
         
         # info("DSEA iteration $k/$maxiter ",
         #      fixweighting || smoothing != :none ? "(" : "",
@@ -127,10 +126,10 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         # reweighting of items
         if (k < maxiter) # only done if there is a next iteration
             # apply smoothing as intermediate step
-            spec[target] = smoothpdf(spec[target], smoothing; kwargs...)
+            spec = smoothpdf(spec, smoothing; kwargs...)
             
-            binweights = normalizepdf(  fixweighting ? spec[target] ./ wfactor : spec[target]  )
-            traindf[w] = max.([ binweights[findfirst(spec[:level] .== t)] for t in traindf[target] ], 1/size(traindf, 1))
+            binweights = normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
+            traindf[w] = max.([ binweights[findfirst(ylevels .== t)] for t in traindf[target] ], 1/size(traindf, 1))
         end
         
     end
