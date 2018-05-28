@@ -262,19 +262,6 @@ smooth_polynomial{T<:Number}(arr::Array{T,1}; order::Int=2) =
 smooth_gmm{T<:Number}(arr::AbstractArray{T,1}; n::Int=1) =
     error("Not yet implemented") # values of fitted Gaussian Mixture Model
 
-
-
-"""
-    normalizepdf!(df, columns=names(df))
-
-Normalize the `columns` of the DataFrame `df` to discrete probability density functions.
-"""
-function normalizepdf!(df::DataFrame, columns::AbstractArray{Symbol,1}=names(df))
-    for c in columns
-        df[c] = normalizepdf(df[c])
-    end
-end
-
 """
     normalizepdf(array...)
     normalizepdf!(array...)
