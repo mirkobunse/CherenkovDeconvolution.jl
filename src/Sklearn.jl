@@ -22,8 +22,9 @@
 module Sklearn
 
 info("ScikitLearn utilities are available in CherenkovDeconvolution")
-using DataFrames, Requires, YAML, ScikitLearn
+using DataFrames, Requires, ScikitLearn
 using ScikitLearnBase.weighted_sum, PyCall
+import CherenkovDeconvolution.Util
 
 @sk_import naive_bayes : GaussianNB
 @sk_import tree        : DecisionTreeClassifier
@@ -35,45 +36,96 @@ export TreeDiscretization
 
 
 """
-    trainpredict(data, train, configfile, target, weight=nothing)
+    train_and_predict_proba(classname, calibrate = false; kwargs...)
 
-Train a classifier specified by the `configfile` file using the `train` DataFrame. Predict
-the `target` column of the `data` using that classifier.
+Obtain a `train_and_predict_proba` object for DSEA. The following `classname`s are
+available:
 
-Return a DataFrame of predictions for the `data` input.
-Each returned DataFrame will contain the confidence distribution of each example.
-If a `weight` column is given in `train`, it is used as an instance weight vector.
+- GaussianNB
+- DecisionTreeClassifier
+- RandomForestClassifier
+
+The keyword arguments configure these classifiers (see official scikit-learn doc).
 """
-function trainpredict(data::AbstractDataFrame, train::AbstractDataFrame, configfile::String,
-                      target::Symbol, weight::Union{Symbol, Void} = nothing; calibrate::Bool = false)
-    
-    # prepare training set
-    features = setdiff(names(train), 
-                       weight != nothing ? [target, weight] : [target])
-    X_train  = convert(Array{Float64,2}, train[:, features])
-    y_train  = map(Symbol, train[target])
-    
-    # train classifier
-    classifier = _from_config(configfile)
+function train_and_predict_proba(classifier)
+    return (X_data, X_train, y_train, w_train, ylevels) -> begin
+        ScikitLearn.fit!(classifier, X_train, y_train; sample_weight = w_train)
+        proba = ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
+        
+        # permute columns in order of ylevels
+        classes = map(string, get_classes(classifier)) # get_classes gives the actual order
+        return proba[:, map(i -> findfirst(classes .== string(ylevels[i])), 1:length(ylevels)) ]
+    end
+end
+
+"""
+    classifier(classname, calibrate = false; kwargs...)
+
+Obtain a classifier to be used in `train_and_predict_proba`. The following values of
+`classname` are available:
+
+- GaussianNB
+- DecisionTreeClassifier
+- RandomForestClassifier
+
+The keyword arguments configure the corresponding class (see official scikit-learn doc).
+"""
+function classifier(classname::AbstractString,
+                    calibrate::Bool = false;
+                    kwargs...)
+    Classifier = eval(parse(classname)) # constructor method
+    classifier = Classifier(; kwargs...)
     if calibrate
         classifier = CalibratedClassifierCV(classifier, method="isotonic")
     end
-    if weight != nothing
-        ScikitLearn.fit!(classifier, X_train, y_train; sample_weight = train[weight])
-    else
-        ScikitLearn.fit!(classifier, X_train, y_train)
+    return classifier
+end
+
+# train_and_predict_proba result from configuration file
+@require YAML begin
+    import YAML
+    """
+        from_config(configfile)
+    
+    Obtain the result of the `classifier` function from a YAML configuration instead of
+    using function arguments.
+    """
+    function classifier_from_config(configfile::AbstractString)
+        c = YAML.load_file(configfile) # read config
+        classname = c["classifier"]
+        params    = get(c, "parameters", nothing) != nothing ? c["parameters"] : Dict{Symbol, Any}()
+        calibrate = get(c, "calibrate",  false)
+        return classifier(classname, calibrate;
+                          zip(map(Symbol, keys(params)), values(params))...)
     end
+end
+
+
+"""
+    trainpredict(data, train, configfile, y, w=nothing)
+
+Train a classifier specified by the `configfile` file using the `train` DataFrame. Predict
+the `y` column of the `data` using that classifier.
+
+Return a DataFrame of predictions for the `data` input.
+Each returned DataFrame will contain the confidence distribution of each example.
+If a `w` column is given in `train`, it is used as an instance weight vector.
+""" # TODO DEPRECATED
+function trainpredict(data::AbstractDataFrame, train::AbstractDataFrame, configfile::String,
+                      y::Symbol, w::Union{Symbol, Void} = nothing;
+                      ylevels::AbstractArray = sort(unique(train[y])))
+    # prepare matrices
+    features = setdiff(names(train), w != nothing ? [y, w] : [y])
+    X_data,  _       = Util.df2Xy(data,  y, features)
+    X_train, y_train = Util.df2Xy(train, y, features)
+    w_train  = w != nothing ? train[w] : ones(size(train, 1))
     
-    # apply to data
-    X_data   = convert(Array{Float64,2}, data[:, features])
-    mat_prob = ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
+    # configure and apply function object
+    trainpredict = train_and_predict_proba(classifier_from_config(configfile))
+    mat_prob     = trainpredict(X_data, X_train, y_train, w_train, ylevels)
     
-    # matrix to DataFrame
-    classes = map(Symbol, get_classes(classifier)) # get_classes gives the correct order
-    columns = [ mat_prob[:,j] for j in 1:size(mat_prob,2) ] # array of arrays
-    return DataFrame(prediction = parse.(Float64, ScikitLearn.predict(classifier, X_data));
-                     zip(classes, columns)...)
-    
+    # matrix to DataFrame (zip levels with array of column arrays)
+    return Util.prob2df(mat_prob, ylevels)
 end
 
 
@@ -89,7 +141,7 @@ at most `max_num_leaves`. It can be used to `discretize()` multidimensional data
 type TreeDiscretization <: ClusterDiscretization
     model::PyObject
     features::Array{Symbol, 1}
-    indexmap::Dict{Int64,Int64}
+    indexmap::Dict{Int64, Int64}
 end
 
 function TreeDiscretization(train::DataFrame, target::Symbol, max_num_leaves::Int,
@@ -97,12 +149,13 @@ function TreeDiscretization(train::DataFrame, target::Symbol, max_num_leaves::In
     
     # prepare training set
     features = setdiff(names(train), [target])
-    X_train  = convert(Array{Float64,2}, train[:, features])
+    X_train  = convert(Array{Float64, 2}, train[:, features])
     y_train  = map(Symbol, train[target])
     
     # train classifier
     classifier = DecisionTreeClassifier(max_leaf_nodes = max_num_leaves,
-                                        criterion = criterion, random_state = seed)
+                                        criterion      = criterion,
+                                        random_state   = seed)
     ScikitLearn.fit!(classifier, X_train, y_train)
     
     # create some "nice" indices 1,...n
@@ -162,14 +215,5 @@ discretize(data::DataFrame, discr::KMeansDiscretization) =
 
 levels(discr::KMeansDiscretization) = collect(1:discr.k)
 
-# obtain a classifier from a configuration (only imported classes are available)
-function _from_config(configfile::String)
-    c = YAML.load_file(configfile) # read config
-    Classifier = eval(parse(c["classifier"])) # constructor method
-    parameters = c["parameters"] != nothing ? c["parameters"] : Dict{Symbol,Any}() # ensure Dict type
-    
-    # parameters as keyword arguments in constructor
-    return Classifier(; zip(map(Symbol, keys(parameters)), values(parameters))...)
-end
 
 end

@@ -356,4 +356,24 @@ function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normaliz
     return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
 end
 
+
+"""
+    df2Xy(df, y, features = setdiff(names(df), [y])))
+
+Convert the DataFrame `df` to a tuple of the feature matrix and the target column `y`.
+"""
+df2Xy(df::AbstractDataFrame, y::Symbol,
+      features::AbstractArray{Symbol, 1} = setdiff(names(df), [y])) =
+    convert(Array{Float64, 2}, df[:, features]),
+    map(Symbol, in(y, names(df)) ? df[y] : nothing)
+
+"""
+    prob2df(prob, ylevels) 
+
+Convert the probability matrix `prob` to a DataFrame, where `ylevels` gives the column names.
+"""
+prob2df{T <: Any}(prob::AbstractArray{Float64, 2}, ylevels::AbstractArray{T, 1}) =
+    DataFrame(; zip(map(Symbol, ylevels), [ prob[:,j] for j in 1:size(prob, 2) ])...)
+
+
 end
