@@ -58,6 +58,7 @@ function dsea{T <: Number}(
               fixweighting::Bool = false,
               returncontributions::Bool = false,
               calibrate::Bool = false,
+              loggingstream::IO = DevNull,
               kwargs...)
     
     m = length(ylevels) # number of classes
@@ -92,13 +93,13 @@ function dsea{T <: Number}(
         
         chi2s = Util.chi2s(f_prev, f) # Chi Square distance between iterations
         
-        # info("DSEA iteration $k/$maxiter ",
-        #      fixweighting || smoothing != :none ? "(" : "",
-        #      fixweighting ? "fixed weighting" : "",
-        #      fixweighting && smoothing != :none ? ", " : "",
-        #      smoothing != :none ? string(smoothing) * " smoothing" : "",
-        #      fixweighting || smoothing != :none ? ") " : "",
-        #      "uses alpha = $alphak (chi2s = $chi2s)")
+        info(loggingstream, "DSEA iteration $k/$maxiter ",
+                            fixweighting || smoothing != :none ? "(" : "",
+                            fixweighting ? "fixed weighting" : "",
+                            fixweighting && smoothing != :none ? ", " : "",
+                            smoothing != :none ? string(smoothing) * " smoothing" : "",
+                            fixweighting || smoothing != :none ? ") " : "",
+                            "uses alpha = $alphak (chi2s = $chi2s)")
         
         # optionally monitor progress
         if inspect != nothing
@@ -107,7 +108,7 @@ function dsea{T <: Number}(
         
         # stop when convergence is assumed
         if chi2s < epsilon # also holds when alpha is zero
-            # info("DSEA convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
+            info(loggingstream, "DSEA convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
             break
         end
         
@@ -115,7 +116,7 @@ function dsea{T <: Number}(
         if k < maxiter # only done if there is a next iteration
             f = Util.smoothpdf(f, smoothing; kwargs...) # smoothing is an intermediate step
             binweights = Util.normalizepdf(fixweighting ? f ./ f_train : f)
-            w_train = max.([ binweights[findfirst(ylevels .== t)] for t in y_train ], 1/n)
+            w_train = max.([ binweights[findfirst(ylevels .== y)] for y in y_train ], 1/n)
         end
         
     end
