@@ -70,12 +70,12 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
     end
     
     # initial spectrum
-    spec = histogram(train[target], ylevels) # trainingset prior
+    spec = Util.histogram(train[target], ylevels) # trainingset prior
     wfactor = spec ./ n # weight factor based on training set spectrum (for weighting fix)
     if typeof(prior) <: Symbol && prior == :uniform
         spec = repmat([size(data, 1) / length(spec)], length(spec))
     elseif typeof(prior) <: AbstractArray
-        spec = normalizepdf(prior) .* size(data, 1)
+        spec = Util.normalizepdf(prior) .* size(data, 1)
     end
     spec = convert(Array{Float64,1}, spec) # ensure type safety
     if (inspect != nothing)
@@ -83,7 +83,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
     end
     
     # weight training examples according to prior
-    binweights = normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
+    binweights = Util.normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
     traindf = hcat(DataFrame(train[:, :]),
                    DataFrame(w = max.([ binweights[findfirst(ylevels .== t)] for t in train[target] ], 1/size(train, 1))))
     w = names(traindf)[end] # name of weight column (hcat produced view with weights)
@@ -94,7 +94,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         lastspec = spec
         
         # predict data and reconstruct spectrum
-        preddata = trainpredict(data, traindf, skconfig, target, w, calibrate = calibrate) # from sklearn.jl
+        preddata = Sklearn.trainpredict(data, traindf, skconfig, target, w, calibrate = calibrate) # from sklearn.jl
         spec     = _dsea_reconstruct(preddata, ylevels)
         
         # find and apply step size
@@ -102,7 +102,7 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         alphak = (typeof(alpha) == Float64) ? alpha : alpha(k, pk, lastspec)
         spec   = lastspec + alphak * pk
         
-        chi2s = chi2s(normalizepdf(lastspec), normalizepdf(spec)) # Chi Square distance between iterations
+        chi2s = Util.chi2s(lastspec, spec) # Chi Square distance between iterations
         
         # info("DSEA iteration $k/$maxiter ",
         #      fixweighting || smoothing != :none ? "(" : "",
@@ -126,9 +126,9 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         # reweighting of items
         if (k < maxiter) # only done if there is a next iteration
             # apply smoothing as intermediate step
-            spec = smoothpdf(spec, smoothing; kwargs...)
+            spec = Util.smoothpdf(spec, smoothing; kwargs...)
             
-            binweights = normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
+            binweights = Util.normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
             traindf[w] = max.([ binweights[findfirst(ylevels .== t)] for t in traindf[target] ], 1/size(traindf, 1))
         end
         

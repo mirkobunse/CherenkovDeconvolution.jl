@@ -26,7 +26,7 @@ This method wraps `run(R, g, n_df)` constructing `R`, `g`, and `n_df` from its a
 """
 function run{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame, y::Symbol, x::Symbol;
                                          method::Symbol=:expand, factor::Int64=1, keepdim::Bool=true,
-                                         ydiscr::Union{Discretization, Void} = nothing,
+                                         ydiscr::Union{Util.Discretization, Void} = nothing,
                                          xdiscr::Union{Function, Void} = nothing,
                                          ylevels::AbstractArray{T1, 1} = ydiscr == nothing ? sort(unique(train[y])) : Float64[],
                                          xlevels::AbstractArray{T2, 1} = xdiscr == nothing ? sort(unique(train[x])) : Float64[],
@@ -40,16 +40,16 @@ function run{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame, y::S
         elseif length(unique(train[y])) <= length(levels(ydiscr))
             warn("RUN input data may be discrete in $y - expansion will have no effect")
         end
-        ydiscr = Discretization(ydiscr, num_bins = factor * length(levels(ydiscr)))
+        ydiscr = Util.Discretization(ydiscr, num_bins = factor * length(levels(ydiscr)))
     elseif method != :reduce && factor > 1
         error("RUN method = :$method is not available")
     elseif factor < 1
         error("RUN factor has to be >= 1")
     end
     if ydiscr != nothing
-        ylevels = levels(ydiscr)
+        ylevels = Util.levels(ydiscr)
         # info("Discretizing data for RUN with $(length(ylevels)) bins in $y")
-        train = discretize(train, ydiscr)
+        train = Util.discretize(train, ydiscr)
     end
     if xdiscr != nothing
         # info("Discretizing RUN data in $x")
@@ -58,8 +58,8 @@ function run{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame, y::S
     end
     
     # estimate transfer and spectrum of observation
-    R = empiricaltransfer(train[y], train[x], ylevels = ylevels, xlevels = xlevels)
-    g = histogram(data[x], xlevels)
+    R = Util.empiricaltransfer(train[y], train[x], ylevels = ylevels, xlevels = xlevels)
+    g = Util.histogram(data[x], xlevels)
     
     # advice from [blobel2002unfolding]: n_df is half the dimensionality of y.
     # After reducing the effective number of degrees of freedom to this value, combine

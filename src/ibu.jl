@@ -18,8 +18,8 @@ function ibu{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame,
                                          kwargs...)
     
     # estimate response and observable distribution
-    R = empiricaltransfer(train[y], train[x], xlevels = xlevels, ylevels = ylevels)
-    g = histogram(data[x], xlevels)
+    R = Util.empiricaltransfer(train[y], train[x], xlevels = xlevels, ylevels = ylevels)
+    g = Util.histogram(data[x], xlevels)
     
     return ibu(R, g; kwargs...)
     
@@ -52,15 +52,15 @@ function ibu{T<:Number}(R::AbstractArray{Float64, 2}, g::AbstractArray{T, 1};
                         kwargs...)
     
     N   = sum(g) # number of examples
-    f_0 = normalizepdf(f_0)
+    f_0 = Util.normalizepdf(f_0)
     inspect(0, NaN, f_0 .* N) # inspect prior
     
     # iterative Bayesian deconvolution
     for k in 1:K
         
         # apply Bayes' rule, compute the X^2 distance, and update the prior
-        f_k   = normalizepdf(_ibu_reverse_transfer(R, f_0) * g)
-        chi2s = chi2s(f_0, f_k)
+        f_k   = Util.normalizepdf(_ibu_reverse_transfer(R, f_0) * g)
+        chi2s = Util.chi2s(f_0, f_k, false)
         f_0   = f_k
         inspect(k, chi2s, f_0 .* N)
         
@@ -72,7 +72,7 @@ function ibu{T<:Number}(R::AbstractArray{Float64, 2}, g::AbstractArray{T, 1};
         
         # smoothing is an intermediate step not performed on the last iteration
         if k < K
-            f_0 = smoothpdf(f_0, smoothing; kwargs...)
+            f_0 = Util.smoothpdf(f_0, smoothing; kwargs...)
         end
         
     end

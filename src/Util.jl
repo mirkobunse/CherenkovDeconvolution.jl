@@ -19,7 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-using Discretizers, Polynomials
+module Util
+
+using DataFrames, Requires, Discretizers, Polynomials
 
 export Discretization, levels, discretize, discretize!
 export histogram, empiricaltransfer, normalizetransfer, normalizetransfer!
@@ -354,3 +356,4 @@ function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normaliz
     return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
 end
 
+end

@@ -19,8 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
+module Sklearn
+
 info("ScikitLearn utilities are available in CherenkovDeconvolution")
-using YAML, ScikitLearn
+using DataFrames, Requires, YAML, ScikitLearn
 using ScikitLearnBase.weighted_sum, PyCall
 
 @sk_import naive_bayes : GaussianNB
@@ -170,3 +172,4 @@ function _from_config(configfile::String)
     return Classifier(; zip(map(Symbol, keys(parameters)), values(parameters))...)
 end
 
+end
