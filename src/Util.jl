@@ -365,7 +365,7 @@ Convert the DataFrame `df` to a tuple of the feature matrix and the target colum
 df2Xy(df::AbstractDataFrame, y::Symbol,
       features::AbstractArray{Symbol, 1} = setdiff(names(df), [y])) =
     convert(Array{Float64, 2}, df[:, features]),
-    map(Symbol, in(y, names(df)) ? df[y] : nothing)
+    in(y, names(df)) ? convert(Array, df[y]) : nothing
 
 """
     prob2df(prob, ylevels) 

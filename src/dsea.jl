@@ -35,11 +35,22 @@ If provided, `inspect` is a function called in every iteration.
 
 Any other keyword argument is forwarded to the smoothing operation (if smoothing is applied).
 """
-function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
+function dsea(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol;
+              features::AbstractArray{Symbol, 1} = setdiff(names(train), [y]),
+              kwargs...)
+    X_data,  _       = Util.df2Xy(data,  y, features)
+    X_train, y_train = Util.df2Xy(train, y, features)
+    dsea(X_data, X_train, y_train; kwargs...)
+end
+
+function dsea{T <: Number}(
+              X_data::AbstractArray{Float64, 2},
+              X_train::AbstractArray{Float64, 2},
+              y_train::AbstractArray{T, 1};
               maxiter::Int64 = 1,
               epsilon::Float64 = 0.0,
               skconfig::String = "conf/sklearn/nb.yml",
-              ylevels::AbstractArray{Float64, 1} = sort(unique(train[target])),
+              ylevels::AbstractArray{Float64, 1} = sort(unique(y_train)),
               prior::Union{AbstractArray{Float64, 1}, Symbol} = :uniform,
               alpha::Union{Float64, Function} = 1.0,
               smoothing::Symbol = :none,
@@ -50,59 +61,36 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
               kwargs...)
     
     m = length(ylevels) # number of classes
-    n = size(train, 1)  # number of training examples
+    n = length(y_train) # number of training examples
     
-    if typeof(prior) <: Symbol && !in(prior, [:uniform, :trainingset])
-        error("Illegal value of parameter `prior`: $prior")
-    elseif !in(smoothing, [:none, :polynomial])
-        error("Illegal value of parameter `smoothing`: $smoothing")
-    end
+    # TODO reintroduce checks
     
-    # check that training data and unfolding data fit to each other
-    if (length(setdiff(names(train), vcat(names(data), target))) > 0)
-        error("""The following attributes are in the training DataFrame, but not in the data DataFrame:
-                 $(setdiff(names(train), names(data)))""")
-    elseif typeof(prior) <: AbstractArray && length(prior) != m
-        error("The given prior is not of the required length $m")
-    elseif (m > .05 * size(data, 1))
-        warn("""There are $m unique values for $target in the training DataFrame (> 5\% of the data).
-                Are you sure the DataFrames are discrete?""")
-    end
-    
-    # initial spectrum
-    spec = Util.histogram(train[target], ylevels) # trainingset prior
-    wfactor = spec ./ n # weight factor based on training set spectrum (for weighting fix)
-    if typeof(prior) <: Symbol && prior == :uniform
-        spec = repmat([size(data, 1) / length(spec)], length(spec))
-    elseif typeof(prior) <: AbstractArray
-        spec = Util.normalizepdf(prior) .* size(data, 1)
-    end
-    spec = convert(Array{Float64,1}, spec) # ensure type safety
-    if (inspect != nothing)
-        inspect(0, NaN, NaN, spec)
+    # initial estimate is uniform prior
+    f       = ones(m) ./ m # TODO optional argument
+    f_train = Util.histogram(y_train, ylevels) ./ m # training set distribution (fixweighting)
+    if inspect != nothing
+        inspect(0, NaN, NaN, f)
     end
     
     # weight training examples according to prior
-    binweights = Util.normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
-    traindf = hcat(DataFrame(train[:, :]),
-                   DataFrame(w = max.([ binweights[findfirst(ylevels .== t)] for t in train[target] ], 1/size(train, 1))))
-    w = names(traindf)[end] # name of weight column (hcat produced view with weights)
+    binweights = Util.normalizepdf(fixweighting ? f ./ f_train : f)
+    w_train = max.([ binweights[findfirst(ylevels .== t)] for t in y_train ], 1/n)
     
     # unfold
-    preddata = DataFrame()
     for k in 1:maxiter
-        lastspec = spec
+        f_prev = f
         
         # predict data and reconstruct spectrum
-        preddata = Sklearn.trainpredict(data, traindf, skconfig, target, w, calibrate = calibrate) # from sklearn.jl
-        spec     = _dsea_reconstruct(preddata, ylevels)
+        trainpredict = Sklearn.train_and_predict_proba(Sklearn.classifier_from_config(skconfig)) # TODO as argument
+        proba        = trainpredict(X_data, X_train, y_train, w_train, ylevels)
+        f            = _dsea_reconstruct(proba)
         
         # find and apply step size
-        pk     = spec - lastspec # direction
-        alphak = (typeof(alpha) == Float64) ? alpha : alpha(k, pk, lastspec)
-        spec   = lastspec + alphak * pk
+        pk     = f - f_prev # direction
+        alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev)
+        f      = f_prev + alphak * pk
         
-        chi2s = Util.chi2s(lastspec, spec) # Chi Square distance between iterations
+        chi2s = Util.chi2s(f_prev, f) # Chi Square distance between iterations
         
         # info("DSEA iteration $k/$maxiter ",
         #      fixweighting || smoothing != :none ? "(" : "",
@@ -113,8 +101,8 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         #      "uses alpha = $alphak (chi2s = $chi2s)")
         
         # optionally monitor progress
-        if (inspect != nothing)
-            inspect(k, alphak, chi2s, spec)
+        if inspect != nothing
+            inspect(k, alphak, chi2s, f)
         end
         
         # stop when convergence is assumed
@@ -124,35 +112,22 @@ function dsea(data::AbstractDataFrame, train::AbstractDataFrame, target::Symbol;
         end
         
         # reweighting of items
-        if (k < maxiter) # only done if there is a next iteration
-            # apply smoothing as intermediate step
-            spec = Util.smoothpdf(spec, smoothing; kwargs...)
-            
-            binweights = Util.normalizepdf(  fixweighting ? spec ./ wfactor : spec  )
-            traindf[w] = max.([ binweights[findfirst(ylevels .== t)] for t in traindf[target] ], 1/size(traindf, 1))
+        if k < maxiter # only done if there is a next iteration
+            f = Util.smoothpdf(f, smoothing; kwargs...) # smoothing is an intermediate step
+            binweights = Util.normalizepdf(fixweighting ? f ./ f_train : f)
+            w_train = max.([ binweights[findfirst(ylevels .== t)] for t in y_train ], 1/n)
         end
         
     end
     
-    # return results
     if returncontributions
-        return spec, preddata
-    else # default
-        return spec
+        return f, proba
+    else
+        return f
     end
     
 end
 
 # spectral reconstruction: sum of confidences in each bin
-function _dsea_reconstruct{T<:Number}(preddata::DataFrame, ylevels::AbstractArray{T, 1})
-    bincontent = (bin::Float64) -> begin # obtain the column of the bin
-        col = Symbol(bin)
-        if in(col, names(preddata))
-            sum(preddata[col])
-        else
-            0.0
-        end
-    end
-    return convert(Array{Float64, 1}, map(bincontent, ylevels))
-end
+_dsea_reconstruct(proba::AbstractArray{Float64, 2}) = map(i -> sum(proba[:, i]), 1:size(proba, 2))
 
