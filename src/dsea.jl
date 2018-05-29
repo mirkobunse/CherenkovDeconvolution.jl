@@ -1,107 +1,113 @@
 """
-    dsea(data, train, target; kwargs...)
+    dsea(data, train, y, train_and_predict_proba;
+         features = setdiff(names(train), [y]),
+         kwargs...)
 
-Unfold the `target` column in the DataFrame `data`, as learned from the DataFrame `train`.
+Deconvolve the `y` distribution in the DataFrame `data`, as learned from the DataFrame
+`train`. This function wraps `dsea(::Matrix, ::Matrix, ::Array, ::Function)`.
 
-The `target` column has to be discrete, i.e., it has to have a limited number of unique values that
-are used as labels for the classifier. All other columns are leveraged in training and prediction.
-
-You can monitor the algorithm's progress by providing the keyword argument `inspect`.
-If provided, `inspect` is a function called in every iteration.
-
-# Keyword arguments
-- `maxiter::Int = 1` gives the maximum number of DSEA iterations within reweighting.
-- `epsilon::Float64 = 0` is the minimum symmetric Chi Square distance between iterations.
-- `skconfig::String = 'conf/weka/nb.yml'` points to the configuration file that specifies
-  the classification algorithm.
-- `prior::Union{AbstractArray{Float64, 1}, Symbol} = :uniform` is the prior spectrum used to
-  weight training examples in the first iteration. Possible symbol values are `:uniform` and
-  `:trainingset`. Any other prior can be specified as an array.
-- `alpha::Union{Float64, Function} = 1.0` is the step size taken in every iteration.
-  Can be either a constant value or a function with the signature
-  `(k::Int, pk::AbstractArray{Float64,1}, lastspec::AbstractArray{Float64,1} -> Float`,
-  where `lastspec` is the estimate of the previous iteration and `pk` is the direction that
-  DSEA takes in the current iteration `k`.
-- `smoothing::Symbol = :none` can also be set to `:polynomial` to apply polynomial smoothing
-  [dagostini2010improved], or any other `method` accepted by `smoothpdf`.
-  The operation is neither applied to the initial prior, nor to the final result,
-  and not to any of the spectra fed into `inspect`.
-- `fixweighting::Bool = false` fixes the reweighting of training examples when the training
-  set is not uniformly distributed over the target bins.
-- `returncontributions::Bool = false` makes the function return a tuple of estimated spectrum
-  and the contribution of each individual item. By default, return the spectrum only.
-- `inspect::Function = nothing` is a function `(k::Int, alpha::Float64, chi2s::Float64,
-  spectrum::Array) -> Any` called in every iteration.
-
-Any other keyword argument is forwarded to the smoothing operation (if smoothing is applied).
+The additional keyword arguments allows to specify the columns in `data` and `train` to be
+used as the `features`.
 """
-function dsea(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol;
+function dsea(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol,
+              train_and_predict_proba::Function;
               features::AbstractArray{Symbol, 1} = setdiff(names(train), [y]),
               kwargs...)
     X_data,  _       = Util.df2Xy(data,  y, features)
     X_train, y_train = Util.df2Xy(train, y, features)
-    dsea(X_data, X_train, y_train; kwargs...)
+    dsea(X_data, X_train, y_train, train_and_predict_proba; kwargs...)
 end
 
+"""
+    dsea(X_data, X_train, y_train, train_and_predict_proba; kwargs...)
+
+Deconvolve the target distribution of `X_data`, as learned from `X_train` and `y_train`.
+The function `train_and_predict_proba` trains and applies a classifier. It has the signature
+`(X_data, X_train, y_train, w_train, ylevels) -> Any`
+where all arguments but `w_train`, which is updated in each iteration, are simply passed
+through.
+To facilitate classification, `y_train` has to be discrete, i.e., it has to have a limited
+number of unique values that are used as labels for the classifier.
+
+# Keyword arguments
+- `ylevels = sort(unique(y_train))`
+  The unique values in `y_train`, optionally specified to ensure that each expected unique
+  value is considered in the deconvolution result.
+- `f_0 = ones(length(ylevels)) ./ length(ylevels)`
+  defines the prior, which is uniform by default
+- `fixweighting = false`
+  sets, whether or not the weight update fix is applied. This fix is proposed in my Master's
+  thesis and in the corresponding paper.
+- `alpha = 1.0`
+  is the step size taken in every iteration.
+  This parameter can be either a constant value or a function with the signature
+  `(k::Int, pk::AbstractArray{Float64,1}, f_prev::AbstractArray{Float64,1} -> Float`,
+  where `f_prev` is the estimate of the previous iteration and `pk` is the direction that
+  DSEA takes in the current iteration `k`.
+- `smoothing = Base.identity`
+  is a function that optionally applies smoothing in between iterations
+- `K = 1`
+  is the maximum number of iterations.
+- `epsilon = 0.0`
+  is the minimum symmetric Chi Square distance between iterations. If the actual distance is
+  below this threshold, convergence is assumed and the algorithm stops.
+- `inspect = nothing`
+  is a function `(k::Int, alpha::Float64, chi2s::Float64, spectrum::Array) -> Any`
+  optionally called in every iteration.
+- `loggingstream = DevNull`
+  is an optional `IO` stream to write log messages to.
+- `return_contributions = false`
+  sets, whether or not the contributions of individual examples in `X_data` are returned as
+  a tuple together with the deconvolution result.
+"""
 function dsea{T <: Number}(
-              X_data::AbstractArray{Float64, 2},
-              X_train::AbstractArray{Float64, 2},
-              y_train::AbstractArray{T, 1};
-              maxiter::Int64 = 1,
-              epsilon::Float64 = 0.0,
-              skconfig::String = "conf/sklearn/nb.yml",
+              X_data::AbstractMatrix{Float64},
+              X_train::AbstractMatrix{Float64},
+              y_train::AbstractArray{T, 1},
+              train_and_predict_proba::Function;
               ylevels::AbstractArray{Float64, 1} = sort(unique(y_train)),
-              prior::Union{AbstractArray{Float64, 1}, Symbol} = :uniform,
+              f_0::AbstractArray{Float64, 1} = ones(length(ylevels)) ./ length(ylevels),
+              fixweighting::Bool = true,
               alpha::Union{Float64, Function} = 1.0,
-              smoothing::Symbol = :none,
+              smoothing::Function = Base.identity,
+              K::Int64 = 1,
+              epsilon::Float64 = 0.0,
               inspect::Union{Function, Void} = nothing,
-              fixweighting::Bool = false,
-              returncontributions::Bool = false,
-              calibrate::Bool = false,
               loggingstream::IO = DevNull,
-              kwargs...)
+              return_contributions::Bool = false)
     
     m = length(ylevels) # number of classes
-    n = length(y_train) # number of training examples
     
-    # TODO reintroduce checks
+    # check arguments
+    if size(X_data, 2) != size(X_train, 2)
+        error("X_data and X_train have a different number of features")
+    elseif length(f_0) != m
+        error("f_0 has a wrong dimensionality")
+    elseif m > .05 * (size(X_data, 1) + size(X_train, 1))
+        warn("More than 5\% of the data are unique values. Are you sure the data is discrete?")
+    end
     
-    # initial estimate is uniform prior
-    f       = ones(m) ./ m # TODO optional argument
-    f_train = Util.histogram(y_train, ylevels) ./ m # training set distribution (fixweighting)
+    # initial estimate (uniform prior by default)
+    f       = Util.normalizepdf(f_0)
+    f_train = Util.histogram(y_train, ylevels) ./ m                            # training distribution
+    w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f, ylevels) # instance weights
     if inspect != nothing
         inspect(0, NaN, NaN, f)
     end
     
-    # weight training examples according to prior
-    binweights = Util.normalizepdf(fixweighting ? f ./ f_train : f)
-    w_train = max.([ binweights[findfirst(ylevels .== t)] for t in y_train ], 1/n)
-    
-    # unfold
-    for k in 1:maxiter
+    # iterative deconvolution
+    proba = Matrix{Float64}(0, 0) # empty matrix
+    for k in 1:K
         f_prev = f
         
-        # predict data and reconstruct spectrum
-        trainpredict = Sklearn.train_and_predict_proba(Sklearn.classifier_from_config(skconfig)) # TODO as argument
-        proba        = trainpredict(X_data, X_train, y_train, w_train, ylevels)
-        f            = _dsea_reconstruct(proba)
+        # === update the estimate ===
+        proba     = train_and_predict_proba(X_data, X_train, y_train, w_train, ylevels)
+        f, alphak = _dsea_step(_dsea_reconstruct(proba), f_prev, alpha)
+        # = = = = = = = = = = = = = =
         
-        # find and apply step size
-        pk     = f - f_prev # direction
-        alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev)
-        f      = f_prev + alphak * pk
-        
+        # monitor progress
         chi2s = Util.chi2s(f_prev, f) # Chi Square distance between iterations
-        
-        info(loggingstream, "DSEA iteration $k/$maxiter ",
-                            fixweighting || smoothing != :none ? "(" : "",
-                            fixweighting ? "fixed weighting" : "",
-                            fixweighting && smoothing != :none ? ", " : "",
-                            smoothing != :none ? string(smoothing) * " smoothing" : "",
-                            fixweighting || smoothing != :none ? ") " : "",
-                            "uses alpha = $alphak (chi2s = $chi2s)")
-        
-        # optionally monitor progress
+        info(loggingstream, "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)")
         if inspect != nothing
             inspect(k, alphak, chi2s, f)
         end
@@ -112,23 +118,36 @@ function dsea{T <: Number}(
             break
         end
         
-        # reweighting of items
-        if k < maxiter # only done if there is a next iteration
-            f = Util.smoothpdf(f, smoothing; kwargs...) # smoothing is an intermediate step
-            binweights = Util.normalizepdf(fixweighting ? f ./ f_train : f)
-            w_train = max.([ binweights[findfirst(ylevels .== y)] for y in y_train ], 1/n)
+        # == smoothing and reweighting in between iterations ==
+        if k < K
+            f = smoothing(f)
+            w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f, ylevels)
         end
+        # = = = = = = = = = = = = = = = = = = = = = = = = = = =
         
     end
     
-    if returncontributions
-        return f, proba
-    else
-        return f
-    end
+    return return_contributions ? (f, proba) : f # result may contain contributions
     
 end
 
-# spectral reconstruction: sum of confidences in each bin
-_dsea_reconstruct(proba::AbstractArray{Float64, 2}) = map(i -> sum(proba[:, i]), 1:size(proba, 2))
+# the weights of training instances are based on the bin weights in w_bin
+function _dsea_weights{T <: Number}(y_train::AbstractArray{T, 1},
+                                    w_bin::AbstractArray{Float64, 1},
+                                    ylevels::AbstractArray{T, 1})
+    w_bin = Util.normalizepdf(w_bin)
+    return max.([ w_bin[findfirst(ylevels .== y)] for y in y_train ], 1/length(y_train))
+end
+
+# the reconstructed estimate is the sum of confidences in each bin
+_dsea_reconstruct(proba::AbstractMatrix{Float64}) = map(i -> sum(proba[:, i]), 1:size(proba, 2))
+
+# the step taken by DSEA+, where alpha may be a constant or a function
+function _dsea_step(f::AbstractArray{Float64, 1},
+                    f_prev::AbstractArray{Float64, 1},
+                    alpha::Union{Float64, Function})
+    pk     = f - f_prev # search direction
+    alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev) # function or float
+    return f_prev + alphak * pk, alphak # return tuple of estimate and step size
+end
 
