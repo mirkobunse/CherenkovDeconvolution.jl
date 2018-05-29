@@ -25,8 +25,7 @@ You can use the deconvolution methods, right away.
       # (Sklearn is a sub-module of CherenkovDeconvolution, which is dynamically loaded if
       # ScikitLearn is available)
       # 
-      skconfig = "example/conf/sklearn-nb.yml"
-      trainpredict = Sklearn.train_and_predict_proba(Sklearn.classifier_from_config(skconfig))
+      trainpredict = Sklearn.train_and_predict_proba("GaussianNB") # Naive Bayes
       
       # read your DataFrames for deconvolution and training
       data = ...

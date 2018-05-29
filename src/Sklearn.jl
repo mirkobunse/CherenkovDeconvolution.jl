@@ -38,16 +38,19 @@ export TreeDiscretization
 """
     train_and_predict_proba(classname, calibrate = false; kwargs...)
 
-Obtain a `train_and_predict_proba` object for DSEA. The following `classname`s are
-available:
-
-- GaussianNB
-- DecisionTreeClassifier
-- RandomForestClassifier
-
-The keyword arguments configure these classifiers (see official scikit-learn doc).
+Shorthand for `train_and_predict_proba(classifier(classname, calibrate; kwargs...))`.
 """
-function train_and_predict_proba(classifier)
+train_and_predict_proba(classname::AbstractString,
+                        calibrate::Bool = false;
+                        kwargs...) =
+    train_and_predict_proba(classifier(classname, calibrate; kwargs...))
+
+"""
+    train_and_predict_proba(classifier)
+
+Obtain a `train_and_predict_proba` object for DSEA.
+"""
+function train_and_predict_proba(classifier::PyObject)
     return (X_data, X_train, y_train, w_train, ylevels) -> begin
         ScikitLearn.fit!(classifier, X_train, y_train; sample_weight = w_train)
         proba = ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
