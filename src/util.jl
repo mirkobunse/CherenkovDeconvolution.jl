@@ -19,9 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-using YAML, Discretizers, Polynomials, Distances
+using Discretizers, Polynomials
 
 export Discretization, levels, discretize, discretize!
+export histogram, empiricaltransfer, normalizetransfer, normalizetransfer!
+export normalizepdf, normalizepdf!, chi2s
 
 
 """
@@ -59,11 +61,8 @@ _scaling(logscale::Bool) = logscale ? log10 : identity
 
 Copy the `Discretization` object `d`, optionally changing values in the copy.
 The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
-
-If `d` is of type `Dict{Any,Any}` (as obtained from a YAML configuration), create
-a discretization from that configuration; keyword arguments apply.
 """
-function Discretization(d::Union{Discretization, Dict{Any,Any}}; kwargs...)
+function Discretization(d::Discretization; kwargs...)
     argdict = Dict{Symbol,Any}(kwargs)
     if !isempty(setdiff(keys(argdict), [:name, :min, :max, :num_levels, :logscale]))
         throw(MethodError(Discretization(d; kwargs...)))
@@ -71,29 +70,26 @@ function Discretization(d::Union{Discretization, Dict{Any,Any}}; kwargs...)
     Discretization(_args_Discretization(d, argdict)...)
 end
 
-_args_Discretization(d::Dict{Any,Any}, argdict::Dict{Symbol,Any}) =
-     Symbol(haskey(argdict, :name)     ? argdict[:name]     : d["name"]),
-    Float64(haskey(argdict, :min)      ? argdict[:max]      : d["min"]),
-    Float64(haskey(argdict, :max)      ? argdict[:max]      : d["max"]),
-      Int64(haskey(argdict, :num_levels) ? argdict[:num_levels] : d["num_levels"]),
-       Bool(haskey(argdict, :logscale) ? argdict[:logscale] : get(d, "logscale", false))
-
 _args_Discretization(d::Discretization, argdict::Dict{Symbol,Any}) =
-     Symbol(get(argdict, :name,     d.name)),
-    Float64(get(argdict, :min,      d.min)),
-    Float64(get(argdict, :max,      d.max)),
+     Symbol(get(argdict, :name,       d.name)),
+    Float64(get(argdict, :min,        d.min)),
+    Float64(get(argdict, :max,        d.max)),
       Int64(get(argdict, :num_levels, d.num_levels)),
    Function(haskey(argdict, :logscale) ? _scaling(argdict[:logscale]) : d.scaling)
 
-"""
-    Discretization(configfile, key=""; kwargs...)
+@require YAML begin
+    import YAML
+    """
+        Discretization(configfile, key=""; kwargs...)
 
-Read the discretization from a YAML configuration file, optionally changing values.
-The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
-"""
-function Discretization(configfile::AbstractString, key::AbstractString=""; kwargs...)
-    c = YAML.load_file(configfile)
-    Discretization(key != "" ? c[key] : c; kwargs...)
+    Read the discretization from a YAML configuration file, optionally changing values.
+    The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
+    """
+    function Discretization(configfile::AbstractString, key::AbstractString=""; kwargs...)
+        c = YAML.load_file(configfile)
+        d = Discretization(key != "" ? c[key] : c)
+        isempty(kwargs) ? d : Discretization(d; kwargs...)
+    end
 end
 
 """
@@ -269,7 +265,7 @@ smooth_gmm{T<:Number}(arr::AbstractArray{T,1}; n::Int=1) =
 
 Normalize each array to a discrete probability density function.
 """
-normalizepdf(a::AbstractArray...) = normalizepdf!(map(copy, a)...)
+normalizepdf(a::AbstractArray...) = normalizepdf!(map(ai -> map(Float64, ai), a)...)
 
 """
     normalizepdf(array...)
@@ -344,9 +340,17 @@ _WARN_NORMALIZE = true
 
 
 """
-    chi2s(a, b)
+    chi2s(a, b, normalize = true)
 
 Symmetric Chi Square distance between histograms `a` and `b`.
 """
-chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}) = 2 * Distances.chisq_dist(a, b)
+function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normalize = true)
+    if normalize
+        a, b = normalizepdf(a, b)
+    end
+    selection = .|(a .> 0, b .> 0) # limit computation to denominators > 0
+    a = a[selection]
+    b = b[selection]
+    return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
+end
 

@@ -1,4 +1,5 @@
-using ScikitLearn, CherenkovDeconvolution
+using ScikitLearn, Distances
+using CherenkovDeconvolution
 @static if VERSION < v"0.7.0-DEV.2005"
     using Base.Test
 else
@@ -49,4 +50,30 @@ end
 # TODO smoothpdf
 
 
-# TODO chi2s
+# chi2s
+@testset "Chi Square distance" for _ in 1:10
+    num_bins  = rand(1:100)
+    a = rand(-100:1000, num_bins)
+    b = rand(0:100, num_bins)
+    @test CherenkovDeconvolution.chi2s(a, b) >= 0
+    
+    a = zeros(num_bins)
+    b = zeros(num_bins)
+    a[1] = 1
+    b[1] = 1
+    last = CherenkovDeconvolution.chi2s(a, b)
+    for _ in 1:10
+        a[rand(2:num_bins)] += rand(1:10)
+        next = CherenkovDeconvolution.chi2s(a, b)
+        @test next > last
+        last = next
+    end
+end
+
+@testset "Chi Square equality to Distances.jl" for _ in 1:100
+    num_bins  = rand(1:100)
+    a = rand(num_bins)
+    b = rand(num_bins)
+    @test CherenkovDeconvolution.chi2s(a, b, false) ≈ 2 * Distances.chisq_dist(a, b) atol=1e-6
+end
+
