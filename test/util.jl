@@ -17,6 +17,14 @@ end
 Util.normalizetransfer!(R)
 
 
+# normalizepdf
+@testset "Normalize pdfs" for _ in 1:10
+    num_bins  = rand(1:100)
+    num_items = rand(1:1000)
+    @test sum(Util.normalizepdf(num_items .* rand(num_bins))) ≈ 1  atol=1e-6
+end
+
+
 # histograms
 @test Util.histogram(y)      == [2, 1, 3]
 @test Util.histogram(y, 1:4) == [2, 1, 0, 3]
@@ -27,14 +35,6 @@ Util.normalizetransfer!(R)
     rand_hist = Util.histogram(rand(1:num_bins, num_items), 1:num_bins)
     @test sum(rand_hist) == num_items
     @test length(rand_hist) == num_bins
-end
-
-
-# normalizepdf
-@testset "Normalize pdfs" for _ in 1:10
-    num_bins  = rand(1:100)
-    num_items = rand(1:1000)
-    @test sum(Util.normalizepdf(num_items .* rand(num_bins))) ≈ 1  atol=1e-6
 end
 
 

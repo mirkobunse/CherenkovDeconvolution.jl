@@ -21,111 +21,90 @@
 # 
 module Util
 
-using DataFrames, Requires, Discretizers, Polynomials
+using DataFrames, Polynomials # TODO DataFrames needed?
 
-export Discretization, levels, discretize, discretize!
 export histogram, empiricaltransfer, normalizetransfer, normalizetransfer!
 export normalizepdf, normalizepdf!, chi2s
 
 
 """
-    Discretization(v, min, max, n, scaling = Base.identity)
-    Discretization(v, min, max, n, logscale = false)
+    normalizepdf(array...)
+    normalizepdf!(array...)
 
-Linear discretization for the variable `v` that goes from `min` to `max` in `n` equidistant
-bins. The resulting object is used in `Util.discretize()`.
-
-The optional `scaling` transforms any value that is discretized (including `min` and `max`).
-`scaling` is `Base.log10` if `logscale == true`.
+Normalize each array to a discrete probability density function.
 """
-type Discretization
-    name::Symbol
-    min::Number
-    max::Number
-    num_levels::Int64
-    edges::StepRangeLen{Float64}
-    scaling::Function
+normalizepdf(a::AbstractArray...) = normalizepdf!(map(ai -> map(Float64, ai), a)...)
+
+"""
+    normalizepdf(array...)
+    normalizepdf!(array...)
+
+Normalize each array to a discrete probability density function.
+"""
+function normalizepdf!(a::AbstractArray...)
     
-    function Discretization(name::Symbol, min::Number, max::Number, num_levels::Int64, scaling::Function=identity)
-        minval = scaling(min)
-        maxval = scaling(max)
-        new(name, min, max, num_levels,  minval:((maxval - minval) / num_levels):maxval,  scaling)
+    arrs = [ a... ] # convert tuple to array
+    single = length(a) == 1 # normalization of single array?
+    
+    # check for NaNs and Infs
+    nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
+    if sum(nans) > 0
+        if _WARN_NORMALIZE
+            warn("Setting NaNs and Infs ",
+                 single ? "" : "in $(sum(nans)) arrays ",
+                 "to zero")
+        end
+        for arr in map(i -> arrs[i], find(nans))
+            arr[isnan.(arr)] = 0
+            arr[abs.(arr) .== Inf] = 0
+            arr[:] = abs.(arr) # float arrays can have negative zeros leading to more warnings
+        end
     end
-end
-
-Discretization(name::Symbol, min::Number, max::Number, num_levels::Int64, logscale::Bool=false) =
-        Discretization(name, min, max, num_levels, _scaling(logscale))
-
-_scaling(logscale::Bool) = logscale ? log10 : identity
-
-"""
-    Discretization(d; kwargs...)
-
-Copy the `Discretization` object `d`, optionally changing values in the copy.
-The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
-"""
-function Discretization(d::Discretization; kwargs...)
-    argdict = Dict{Symbol,Any}(kwargs)
-    if !isempty(setdiff(keys(argdict), [:name, :min, :max, :num_levels, :logscale]))
-        throw(MethodError(Discretization(d; kwargs...)))
+    
+    # check for negative values
+    negs = [ any(arr .< 0) for arr in arrs ]
+    if sum(negs) > 0
+        if _WARN_NORMALIZE
+            warn("Setting negative values ",
+                 single ? "" : "in $(sum(negs)) arrays ",
+                 "to zero")
+        end
+        for arr in map(i -> arrs[i], find(negs))
+            arr[arr .< 0] = 0
+            arr[:] = abs.(arr)
+        end
     end
-    Discretization(_args_Discretization(d, argdict)...)
-end
-
-_args_Discretization(d::Discretization, argdict::Dict{Symbol,Any}) =
-     Symbol(get(argdict, :name,       d.name)),
-    Float64(get(argdict, :min,        d.min)),
-    Float64(get(argdict, :max,        d.max)),
-      Int64(get(argdict, :num_levels, d.num_levels)),
-   Function(haskey(argdict, :logscale) ? _scaling(argdict[:logscale]) : d.scaling)
-
-@require YAML begin
-    import YAML
-    """
-        Discretization(configfile, key=""; kwargs...)
-
-    Read the discretization from a YAML configuration file, optionally changing values.
-    The keyword arguments are `name`, `min`, `max`, `num_levels` and `logscale`.
-    """
-    function Discretization(configfile::AbstractString, key::AbstractString=""; kwargs...)
-        c = YAML.load_file(configfile)
-        d = Discretization(key != "" ? c[key] : c)
-        isempty(kwargs) ? d : Discretization(d; kwargs...)
+    
+    # check for zero sums
+    sums = map(sum, arrs)
+    zers = map(iszero, sums)
+    if sum(zers) > 0
+        if _WARN_NORMALIZE
+            warn(single ? "zero vector " : "$(sum(zers)) zero vectors ",
+                 "replaced by uniform distribution",
+                 single ? "" : "s")
+        end
+        for arr in map(i -> arrs[i], find(zers))
+            idim   = length(arr)
+            arr[:] = ones(idim) ./ idim
+        end
     end
-end
-
-"""
-    levels(d::Discretization)
-
-The unique values of data discretized with `d`.
-"""
-levels(d::Discretization) = collect(d.edges[1:end-1])
-
-"""
-    discretize(x, d::Discretization)
-    discretize(df, d::Discretization...)
-
-Return a discretized copy of the array `x` or the DataFrame `df`.
-In a DataFrame, multiple columns can be discretized simultaneously.
-"""
-discretize(x::Union{Float64, AbstractArray{Float64,1}}, d::Discretization) =
-        d.edges[encode(LinearDiscretizer(d.edges), d.scaling(x))]
-
-discretize(df::AbstractDataFrame, ds::Discretization...) = discretize!(copy(df), ds...)
-
-"""
-    discretize!(df, d::Discretization...)
-
-In-place variant of discretize(df, d::Discretization...)
-"""
-function discretize!(df::AbstractDataFrame, ds::Discretization...)
-    for d in ds
-        df[d.name] = discretize(df[d.name], d)
+    
+    # normalize (narrs array is created before assignment for cases where the same array is in arrs multiple times)
+    narrs = [ zers[i] ? arrs[i] : arrs[i] ./ sums[i] for i in 1:length(arrs) ]
+    for i in find(.!(zers))
+        arrs[i][:] = narrs[i]
     end
-    return df
+    
+    # return tuple or single value
+    if single
+        return arrs[1]
+    else
+        return (arrs...) # convert to tuple
+    end
+    
 end
-
-
+_WARN_NORMALIZE = true
 
 
 """
@@ -172,6 +151,7 @@ function empiricaltransfer{T1 <: Number, T2 <: Number}(
             xlevels::AbstractArray{T1, 1} = sort(unique(x)))
     
     # TODO test same length
+    # TODO find more efficient implementation (like in CherenkovDeconvolution.py)
     
     # count transfer occurences for each combination of levels
     counts = aggregate(DataFrame(y = y, x = x, c = ones(length(y))),
@@ -261,85 +241,6 @@ smooth_polynomial{T<:Number}(arr::Array{T,1}; order::Int=2) =
 smooth_gmm{T<:Number}(arr::AbstractArray{T,1}; n::Int=1) =
     error("Not yet implemented") # values of fitted Gaussian Mixture Model
 
-"""
-    normalizepdf(array...)
-    normalizepdf!(array...)
-
-Normalize each array to a discrete probability density function.
-"""
-normalizepdf(a::AbstractArray...) = normalizepdf!(map(ai -> map(Float64, ai), a)...)
-
-"""
-    normalizepdf(array...)
-    normalizepdf!(array...)
-
-Normalize each array to a discrete probability density function.
-"""
-function normalizepdf!(a::AbstractArray...)
-    
-    arrs = [ a... ] # convert tuple to array
-    single = length(a) == 1 # normalization of single array?
-    
-    # check for NaNs and Infs
-    nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
-    if sum(nans) > 0
-        if _WARN_NORMALIZE
-            warn("Setting NaNs and Infs ",
-                 single ? "" : "in $(sum(nans)) arrays ",
-                 "to zero")
-        end
-        for arr in map(i -> arrs[i], find(nans))
-            arr[isnan.(arr)] = 0
-            arr[abs.(arr) .== Inf] = 0
-            arr[:] = abs.(arr) # float arrays can have negative zeros leading to more warnings
-        end
-    end
-    
-    # check for negative values
-    negs = [ any(arr .< 0) for arr in arrs ]
-    if sum(negs) > 0
-        if _WARN_NORMALIZE
-            warn("Setting negative values ",
-                 single ? "" : "in $(sum(negs)) arrays ",
-                 "to zero")
-        end
-        for arr in map(i -> arrs[i], find(negs))
-            arr[arr .< 0] = 0
-            arr[:] = abs.(arr)
-        end
-    end
-    
-    # check for zero sums
-    sums = map(sum, arrs)
-    zers = map(iszero, sums)
-    if sum(zers) > 0
-        if _WARN_NORMALIZE
-            warn(single ? "zero vector " : "$(sum(zers)) zero vectors ",
-                 "replaced by uniform distribution",
-                 single ? "" : "s")
-        end
-        for arr in map(i -> arrs[i], find(zers))
-            idim   = length(arr)
-            arr[:] = ones(idim) ./ idim
-        end
-    end
-    
-    # normalize (narrs array is created before assignment for cases where the same array is in arrs multiple times)
-    narrs = [ zers[i] ? arrs[i] : arrs[i] ./ sums[i] for i in 1:length(arrs) ]
-    for i in find(.!(zers))
-        arrs[i][:] = narrs[i]
-    end
-    
-    # return tuple or single value
-    if single
-        return arrs[1]
-    else
-        return (arrs...) # convert to tuple
-    end
-    
-end
-_WARN_NORMALIZE = true
-
 
 """
     chi2s(a, b, normalize = true)
@@ -355,25 +256,6 @@ function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normaliz
     b = b[selection]
     return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
 end
-
-
-"""
-    df2Xy(df, y, features = setdiff(names(df), [y])))
-
-Convert the DataFrame `df` to a tuple of the feature matrix and the target column `y`.
-"""
-df2Xy(df::AbstractDataFrame, y::Symbol,
-      features::AbstractArray{Symbol, 1} = setdiff(names(df), [y])) =
-    convert(Array{Float64, 2}, df[:, features]),
-    in(y, names(df)) ? convert(Array, df[y]) : nothing
-
-"""
-    prob2df(prob, ylevels) 
-
-Convert the probability matrix `prob` to a DataFrame, where `ylevels` gives the column names.
-"""
-prob2df{T <: Any}(prob::AbstractArray{Float64, 2}, ylevels::AbstractArray{T, 1}) =
-    DataFrame(; zip(map(Symbol, ylevels), [ prob[:,j] for j in 1:size(prob, 2) ])...)
 
 
 end
