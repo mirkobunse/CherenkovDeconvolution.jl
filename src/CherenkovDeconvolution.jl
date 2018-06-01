@@ -26,14 +26,14 @@ using DataFrames, Requires
 
 
 # utility modules
-include("Util.jl")
-@require ScikitLearn include("Sklearn.jl") # optional sklearn utilities
+include("util.jl")
+@require ScikitLearn include("sklearn.jl") # optional sklearn utilities
 
 
 # deconvolution methods
-include("run.jl")
-include("ibu.jl")
-include("dsea.jl")
+include("methods/run.jl")
+include("methods/ibu.jl")
+include("methods/dsea.jl")
 
 
 end # module
