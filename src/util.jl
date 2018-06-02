@@ -21,10 +21,23 @@
 # 
 module Util
 
-using DataFrames, Polynomials # TODO DataFrames needed?
+using DataFrames, Discretizers, Polynomials # TODO DataFrames needed?
 
 export histogram, empiricaltransfer, normalizetransfer, normalizetransfer!
 export normalizepdf, normalizepdf!, chi2s
+
+
+"""    
+    fit_pdf(x, edges)
+    fit_pdf(x, ld)
+
+Obtain the discrete pdf of the array `x` over the bins specified by `edges`. Alternatively,
+obtain these edges from the `LinearDiscretizer` object `ld`.
+"""
+fit_pdf{T<:Number}(x::AbstractArray{T, 1}, ld::LinearDiscretizer) = fit_pdf(x, binedges(ld))
+
+fit_pdf{T<:Number, N<:Real}(x::AbstractArray{T, 1}, edges::Vector{N}) =
+    normalize(fit(Histogram, x, edges, closed=:left), mode=:probability).weights
 
 
 """
@@ -107,6 +120,9 @@ end
 _WARN_NORMALIZE = true
 
 
+# TODO replace histogram() by fit_pdf
+
+
 """
     histogram(arr, levels = nothing)
 
@@ -129,6 +145,9 @@ function histogram{T <: Number}(arr::AbstractArray{T,1}, levels::AbstractArray{T
     return convert(Array{Int64,1}, df[:n])
     
 end
+
+
+# TODO replace empiricaltransfer() by fit_R, which uses StatsBase.histogram, too
 
 
 """
