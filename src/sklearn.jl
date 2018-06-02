@@ -51,13 +51,9 @@ train_and_predict_proba(classname::AbstractString,
 Obtain a `train_and_predict_proba` object for DSEA.
 """
 function train_and_predict_proba(classifier::PyObject)
-    return (X_data, X_train, y_train, w_train, ylevels) -> begin
+    return (X_data::Matrix, X_train::Matrix, y_train::Array, w_train::Array) -> begin
         ScikitLearn.fit!(classifier, X_train, y_train; sample_weight = w_train)
-        proba = ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
-        
-        # permute columns in order of ylevels
-        classes = map(string, get_classes(classifier)) # get_classes gives the actual order
-        return proba[:, map(i -> findfirst(classes .== string(ylevels[i])), 1:length(ylevels)) ]
+        return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end
 

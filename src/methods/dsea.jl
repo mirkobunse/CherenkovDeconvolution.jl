@@ -23,17 +23,14 @@ end
 
 Deconvolve the target distribution of `X_data`, as learned from `X_train` and `y_train`.
 The function `train_and_predict_proba` trains and applies a classifier. It has the signature
-`(X_data, X_train, y_train, w_train, ylevels) -> Any`
+`(X_data, X_train, y_train, w_train) -> Any`
 where all arguments but `w_train`, which is updated in each iteration, are simply passed
 through.
 To facilitate classification, `y_train` has to be discrete, i.e., it has to have a limited
 number of unique values that are used as labels for the classifier.
 
 # Keyword arguments
-- `ylevels = sort(unique(y_train))`
-  The unique values in `y_train`, optionally specified to ensure that each expected unique
-  value is considered in the deconvolution result.
-- `f_0 = ones(length(ylevels)) ./ length(ylevels)`
+- `f_0 = ones(m) ./ m`
   defines the prior, which is uniform by default
 - `fixweighting = false`
   sets, whether or not the weight update fix is applied. This fix is proposed in my Master's
@@ -60,37 +57,53 @@ number of unique values that are used as labels for the classifier.
   sets, whether or not the contributions of individual examples in `X_data` are returned as
   a tuple together with the deconvolution result.
 """
-function dsea{T <: Number}(
-              X_data::AbstractMatrix{Float64},
-              X_train::AbstractMatrix{Float64},
-              y_train::AbstractArray{T, 1},
-              train_and_predict_proba::Function;
-              ylevels::AbstractArray{Float64, 1} = sort(unique(y_train)),
-              f_0::AbstractArray{Float64, 1} = ones(length(ylevels)) ./ length(ylevels),
-              fixweighting::Bool = true,
-              alpha::Union{Float64, Function} = 1.0,
-              smoothing::Function = Base.identity,
-              K::Int64 = 1,
-              epsilon::Float64 = 0.0,
-              inspect::Union{Function, Void} = nothing,
-              loggingstream::IO = DevNull,
-              return_contributions::Bool = false)
+dsea{TN<:Number, TI<:Int}(X_data::AbstractMatrix{TN},
+                          X_train::AbstractMatrix{TN},
+                          y_train::AbstractArray{TI, 1},
+                          train_and_predict_proba::Function;
+                          kwargs...) =
+    dsea(convert(Array, X_data), convert(Array, X_train), convert(Array, y_train),
+         train_and_predict_proba; kwargs...)
+
+function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
+                                   X_train::Matrix{TN},
+                                   y_train::Array{TI, 1},
+                                   train_and_predict_proba::Function;
+                                   f_0::Array{Float64, 1} = Float64[],
+                                   fixweighting::Bool = true,
+                                   alpha::Union{Float64, Function} = 1.0,
+                                   smoothing::Function = Base.identity,
+                                   K::Int64 = 1,
+                                   epsilon::Float64 = 0.0,
+                                   inspect::Union{Function, Void} = nothing,
+                                   loggingstream::IO = DevNull,
+                                   return_contributions::Bool = false)
+    # 
+    # Note: X_data, X_train, and y_train are converted to actual Array objects because
+    # ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used.
+    # 
     
-    m = length(ylevels) # number of classes
-    
-    # check arguments
-    if size(X_data, 2) != size(X_train, 2)
-        error("X_data and X_train have a different number of features")
-    elseif length(f_0) != m
-        error("f_0 has a wrong dimensionality")
-    elseif m > .05 * (size(X_data, 1) + size(X_train, 1))
-        warn("More than 5\% of the data are unique values. Are you sure the data is discrete?")
+    # check positional arguments
+    m = maximum(y_train) # number of classes / dimension of f
+    if extrema(y_train) != (1, m)
+        throw(ArgumentError("Target value indices in y_train do not range from 1 to $m"))
+    elseif size(X_data, 2) != size(X_train, 2)
+        throw(ArgumentError("X_data and X_train do not have the same number of features"))
     end
     
-    # initial estimate (uniform prior by default)
-    f       = Util.normalizepdf(f_0)
-    f_train = Util.histogram(y_train, ylevels) ./ m                            # training distribution
-    w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f, ylevels) # instance weights
+    # check prior
+    if length(f_0) == 0
+        f_0 = ones(m) ./ m
+    elseif length(f_0) != m
+        throw(DimensionMismatch("dim(f_0) != $m, the number of classes"))
+    else # f_0 is provided and alright
+        f_0 = Util.normalizepdf(f_0) # ensure pdf
+    end
+    
+    # initial estimate
+    f       = f_0
+    f_train = Util.fit_pdf(y_train) # training distribution
+    w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f) # instance weights
     if inspect != nothing
         inspect(0, NaN, NaN, f)
     end
@@ -101,7 +114,7 @@ function dsea{T <: Number}(
         f_prev = f
         
         # === update the estimate ===
-        proba     = train_and_predict_proba(X_data, X_train, y_train, w_train, ylevels)
+        proba     = train_and_predict_proba(X_data, X_train, y_train, w_train)
         f, alphak = _dsea_step(_dsea_reconstruct(proba), f_prev, alpha)
         # = = = = = = = = = = = = = =
         
@@ -121,7 +134,7 @@ function dsea{T <: Number}(
         # == smoothing and reweighting in between iterations ==
         if k < K
             f = smoothing(f)
-            w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f, ylevels)
+            w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f)
         end
         # = = = = = = = = = = = = = = = = = = = = = = = = = = =
         
@@ -132,19 +145,16 @@ function dsea{T <: Number}(
 end
 
 # the weights of training instances are based on the bin weights in w_bin
-function _dsea_weights{T <: Number}(y_train::AbstractArray{T, 1},
-                                    w_bin::AbstractArray{Float64, 1},
-                                    ylevels::AbstractArray{T, 1})
-    w_bin = Util.normalizepdf(w_bin)
-    return max.([ w_bin[findfirst(ylevels .== y)] for y in y_train ], 1/length(y_train))
+function _dsea_weights{T<:Int}(y_train::Array{T, 1}, w_bin::Array{Float64, 1})
+    w_bin = Util.normalizepdf(w_bin) # TODO normalize elsewhere
+    return max.(w_bin[y_train], 1/length(y_train))
 end
 
 # the reconstructed estimate is the sum of confidences in each bin
-_dsea_reconstruct(proba::AbstractMatrix{Float64}) = map(i -> sum(proba[:, i]), 1:size(proba, 2))
+_dsea_reconstruct(proba::Matrix{Float64}) = map(i -> sum(proba[:, i]), 1:size(proba, 2))
 
 # the step taken by DSEA+, where alpha may be a constant or a function
-function _dsea_step(f::AbstractArray{Float64, 1},
-                    f_prev::AbstractArray{Float64, 1},
+function _dsea_step(f::Array{Float64, 1}, f_prev::Array{Float64, 1},
                     alpha::Union{Float64, Function})
     pk     = f - f_prev # search direction
     alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev) # function or float

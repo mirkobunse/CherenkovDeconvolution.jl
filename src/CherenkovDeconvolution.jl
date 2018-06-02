@@ -31,8 +31,8 @@ include("util.jl")
 
 
 # deconvolution methods
-include("methods/run.jl")
-include("methods/ibu.jl")
+# include("methods/run.jl")
+# include("methods/ibu.jl")
 include("methods/dsea.jl")
 
 

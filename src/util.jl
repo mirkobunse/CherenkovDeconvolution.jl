@@ -28,17 +28,17 @@ export normalizepdf, normalizepdf!, chi2s
 
 
 """    
-    fit_pdf(x, edges)
-    fit_pdf(x, ld)
+    fit_pdf(x)
 
-Obtain the discrete pdf of the array `x` over the bins specified by `edges`. Alternatively,
-obtain these edges from the `LinearDiscretizer` object `ld`.
+Obtain the discrete pdf of the integer array `x`.
 """
-fit_pdf{T<:Number}(x::AbstractArray{T, 1}, ld::LinearDiscretizer) = fit_pdf(x, binedges(ld))
+fit_pdf{T<:Int}(x::AbstractArray{T, 1}) =
+    normalize(fit(Histogram, x, _edges(x), closed=:left), mode=:probability).weights
 
-fit_pdf{T<:Number, N<:Real}(x::AbstractArray{T, 1}, edges::Vector{N}) =
-    normalize(fit(Histogram, x, edges, closed=:left), mode=:probability).weights
-
+@inline function _edges{T<:Int}(x::AbstractArray{T, 1})
+    xmin, xmax = extrema(x)
+    return xmin:(xmax+1)
+end
 
 """
     normalizepdf(array...)
