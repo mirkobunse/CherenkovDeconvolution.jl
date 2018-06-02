@@ -102,8 +102,9 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     
     # initial estimate
     f       = f_0
-    f_train = Util.fit_pdf(y_train) # training distribution
-    w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f) # instance weights
+    f_train = Util.fit_pdf(y_train)                              # training distribution
+    w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f # bin weights
+    w_train = _dsea_weights(y_train, w_bin)                      # instance weights
     if inspect != nothing
         inspect(0, NaN, NaN, f)
     end
@@ -134,7 +135,8 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         # == smoothing and reweighting in between iterations ==
         if k < K
             f = smoothing(f)
-            w_train = _dsea_weights(y_train, fixweighting ? f ./ f_train : f)
+            w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f
+            w_train = _dsea_weights(y_train, w_bin)
         end
         # = = = = = = = = = = = = = = = = = = = = = = = = = = =
         
@@ -145,19 +147,18 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
 end
 
 # the weights of training instances are based on the bin weights in w_bin
-function _dsea_weights{T<:Int}(y_train::Array{T, 1}, w_bin::Array{Float64, 1})
-    w_bin = Util.normalizepdf(w_bin) # TODO normalize elsewhere
-    return max.(w_bin[y_train], 1/length(y_train))
-end
+_dsea_weights{T<:Int}(y_train::Array{T, 1}, w_bin::Array{Float64, 1}) =
+    max.(w_bin[y_train], 1/length(y_train)) # Laplace correction
 
 # the reconstructed estimate is the sum of confidences in each bin
-_dsea_reconstruct(proba::Matrix{Float64}) = map(i -> sum(proba[:, i]), 1:size(proba, 2))
+_dsea_reconstruct(proba::Matrix{Float64}) =
+    Util.normalizepdf(map(i -> sum(proba[:, i]), 1:size(proba, 2)))
 
 # the step taken by DSEA+, where alpha may be a constant or a function
 function _dsea_step(f::Array{Float64, 1}, f_prev::Array{Float64, 1},
                     alpha::Union{Float64, Function})
-    pk     = f - f_prev # search direction
+    pk     = f - f_prev                                              # search direction
     alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev) # function or float
-    return f_prev + alphak * pk, alphak # return tuple of estimate and step size
+    return  f_prev + alphak * pk,  alphak                            # return tuple
 end
 
