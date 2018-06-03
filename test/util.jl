@@ -4,17 +4,17 @@
 
 
 # dummy data
-y = [2, 1, 4, 4, 4, 1]
+y = [2, 1, 3, 3, 3, 1]
 Rdict = Dict(1 => 1,
              2 => 1,
-             3 => 3,
-             4 => 3)
+             3 => 2,
+             4 => 2)
 x = get.(Rdict, y, -1)
-R = zeros(Float64, (3, 4))
+R = zeros(Float64, (2, 3))
 for i in 1:length(y)
     R[x[i], y[i]] += 1
 end
-Util.normalizetransfer!(R)
+R = Util.normalizetransfer(R)
 
 
 # normalizepdf
@@ -29,7 +29,6 @@ end
 
 # histograms
 @test Util.histogram(y)      == [2, 1, 3]
-@test Util.histogram(y, 1:4) == [2, 1, 0, 3]
 
 @testset "Random histograms" begin
     for _ in 1:10
@@ -42,9 +41,9 @@ end
 end
 
 
-# empiricaltransfer
-@test size(Util.empiricaltransfer(y, x)) == (2, 3)
-@test Util.empiricaltransfer(y, x, ylevels = 1:4, xlevels = 1:3) == R
+# fit_r
+@test size(Util.fit_R(y, x)) == (2, 3)
+@test Util.fit_R(y, x) == R
 
 
 # TODO smoothpdf

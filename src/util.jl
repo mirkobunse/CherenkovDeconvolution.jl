@@ -40,6 +40,44 @@ fit_pdf{T<:Int}(x::AbstractArray{T, 1}) =
     return xmin:(xmax+1)
 end
 
+
+"""
+    fit_R(y, x; normalize=true)
+
+Estimate the detector response matrix `R`, which empirically captures the transfer from the
+integer array `y` to the integer array `x`.
+
+`R` is normalized by default so that `histogram(x) = R * histogram(y)` holds.
+
+If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
+"""
+function fit_R{T<:Int}(y::AbstractArray{T, 1}, x::AbstractArray{T, 1};
+                       normalize::Bool = true)
+    # check arguments (not done by fit(::Histogram, ..))
+    if length(y) != length(x)
+        throw(ArgumentError("x and y have a different dimension"))
+    end
+    
+    # estimate detector response matrix
+    R = fit(Histogram, (x, y), (_edges(x), _edges(y)), closed=:left).weights
+    return normalize ? normalizetransfer(R) : R
+end
+
+
+"""
+    normalizetransfer(R)
+
+Normalize each column in `R` to make a probability density function.
+"""
+function normalizetransfer{T<:Number}(R::AbstractMatrix{T})
+    R_norm = zeros(Float64, size(R))
+    for i in 1:size(R, 2)
+        R_norm[:,i] = normalizepdf(R[:,i])
+    end
+    return R_norm
+end
+
+
 """
     normalizepdf(array...)
     normalizepdf!(array...)
@@ -146,65 +184,6 @@ function histogram{T <: Number}(arr::AbstractArray{T,1}, levels::AbstractArray{T
     
 end
 
-
-# TODO replace empiricaltransfer() by fit_R, which uses StatsBase.histogram, too
-
-
-"""
-    empiricaltransfer(y, x; normalize=true)
-
-Empirically estimate the transfer matrix from the `y` array to the `x` array, both of which
-are discrete, i.e., they have a limited number of unique values.
-
-The returned matrix `R` is normalized by default so that `xhist = R * yhist` holds where
-- `R = empiricaltransfer(y, x)`
-- `xhist = histogram(x)`
-- `yhist = histogram(y)`
-
-If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
-"""
-function empiricaltransfer{T1 <: Number, T2 <: Number}(
-            y::AbstractArray{T1, 1}, x::AbstractArray{T2, 1};
-            normalize::Bool = true,
-            ylevels::AbstractArray{T2, 1} = sort(unique(y)),
-            xlevels::AbstractArray{T1, 1} = sort(unique(x)))
-    
-    # TODO test same length
-    # TODO find more efficient implementation (like in CherenkovDeconvolution.py)
-    
-    # count transfer occurences for each combination of levels
-    counts = aggregate(DataFrame(y = y, x = x, c = ones(length(y))),
-                       [:y, :x], sdf -> size(sdf, 1))
-    
-    # convert to matrix
-    R = zeros(Float64, (length(xlevels), length(ylevels)))
-    for k in 1:size(counts, 1)
-        i = findfirst(ylevels, counts[k, :y])
-        j = findfirst(xlevels, counts[k, :x])
-        R[j,i] = counts[k,end]
-    end
-    
-    if normalize
-        normalizetransfer!(R)
-    end
-    return R
-    
-end
-
-"""
-    normalizetransfer(R)
-    normalizetransfer!(R)
-
-Normalize each column in `R` to make a probability density function.
-"""
-normalizetransfer(R::AbstractArray{Float64,2}) = normalizetransfer!(copy(R))
-
-function normalizetransfer!(R::AbstractArray{Float64,2})
-    for i in 1:size(R, 2)
-        R[:,i] = normalizepdf(R[:,i])
-    end
-    return R
-end
 
 """
     smoothpdf(arr, method=:polynomial; kwargs...)
