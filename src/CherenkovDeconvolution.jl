@@ -22,12 +22,25 @@
 module CherenkovDeconvolution
 
 
-using DataFrames, Requires
+using DataFrames
+
+export Util, Sklearn
+export dsea
 
 
-# utility modules
-include("util.jl")
-@require ScikitLearn include("sklearn.jl") # optional sklearn utilities
+# utility module
+module Util
+    include("util.jl")
+end
+
+# optional sklearn utilities
+module Sklearn
+    using Requires
+    @require ScikitLearn begin
+        info("Utilities of ScikitLearn.jl are available in CherenkovDeconvolution.Sklearn")
+        include("sklearn.jl")
+    end
+end
 
 
 # deconvolution methods

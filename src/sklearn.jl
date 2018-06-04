@@ -19,10 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-module Sklearn
-
-info("ScikitLearn utilities are available in CherenkovDeconvolution")
-
 using DataFrames, Requires, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall
 using ScikitLearnBase: weighted_sum
@@ -127,7 +123,4 @@ encode{T<:Number}(d::KMeansDiscretizer{T}, X_data::Matrix{T}) =
     convert(Array{Int64, 1}, ScikitLearn.predict(d.model, X_data)) .+ 1
 
 bins(d::KMeansDiscretizer) = collect(1:d.k)
-
-
-end
 
