@@ -11,7 +11,8 @@ y = encode(CategoricalDiscretizer(y_labels), y_labels)
 
 # deconvolve
 using ScikitLearn, CherenkovDeconvolution
-foo   = CherenkovDeconvolution.Sklearn.train_and_predict_proba("GaussianNB") # TODO improve
+@sk_import naive_bayes : GaussianNB
+foo   = CherenkovDeconvolution.Sklearn.train_and_predict_proba(GaussianNB())
 f_est = CherenkovDeconvolution.dsea(X_data, X_train, y_train, foo)
 
 

@@ -22,28 +22,16 @@
 module Sklearn
 
 info("ScikitLearn utilities are available in CherenkovDeconvolution")
-using DataFrames, Requires, ScikitLearn
-using ScikitLearnBase.weighted_sum, PyCall
+
+using DataFrames, Requires, ScikitLearn, PyCall.PyObject, ScikitLearnBase.weighted_sum
 import CherenkovDeconvolution.Util
 
-@sk_import naive_bayes : GaussianNB
 @sk_import tree        : DecisionTreeClassifier
-@sk_import ensemble    : RandomForestClassifier
 @sk_import cluster     : KMeans
-@sk_import calibration : CalibratedClassifierCV
-
-export TreeDiscretization
 
 
-"""
-    train_and_predict_proba(classname, calibrate = false; kwargs...)
+export ClusterDiscretization, TreeDiscretization, KMeansDiscretization
 
-Shorthand for `train_and_predict_proba(classifier(classname, calibrate; kwargs...))`.
-"""
-train_and_predict_proba(classname::AbstractString,
-                        calibrate::Bool = false;
-                        kwargs...) =
-    train_and_predict_proba(classifier(classname, calibrate; kwargs...))
 
 """
     train_and_predict_proba(classifier)
@@ -56,77 +44,6 @@ function train_and_predict_proba(classifier::PyObject)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end
-
-"""
-    classifier(classname, calibrate = false; kwargs...)
-
-Obtain a classifier to be used in `train_and_predict_proba`. The following values of
-`classname` are available:
-
-- GaussianNB
-- DecisionTreeClassifier
-- RandomForestClassifier
-
-The keyword arguments configure the corresponding class (see official scikit-learn doc).
-"""
-function classifier(classname::AbstractString,
-                    calibrate::Bool = false;
-                    kwargs...)
-    Classifier = eval(parse(classname)) # constructor method
-    classifier = Classifier(; kwargs...)
-    if calibrate
-        classifier = CalibratedClassifierCV(classifier, method="isotonic")
-    end
-    return classifier
-end
-
-# train_and_predict_proba result from configuration file
-@require YAML begin
-    import YAML
-    """
-        from_config(configfile)
-    
-    Obtain the result of the `classifier` function from a YAML configuration instead of
-    using function arguments.
-    """
-    function classifier_from_config(configfile::AbstractString)
-        c = YAML.load_file(configfile) # read config
-        classname = c["classifier"]
-        params    = get(c, "parameters", nothing) != nothing ? c["parameters"] : Dict{Symbol, Any}()
-        calibrate = get(c, "calibrate",  false)
-        return classifier(classname, calibrate;
-                          zip(map(Symbol, keys(params)), values(params))...)
-    end
-end
-
-
-"""
-    trainpredict(data, train, configfile, y, w=nothing)
-
-Train a classifier specified by the `configfile` file using the `train` DataFrame. Predict
-the `y` column of the `data` using that classifier.
-
-Return a DataFrame of predictions for the `data` input.
-Each returned DataFrame will contain the confidence distribution of each example.
-If a `w` column is given in `train`, it is used as an instance weight vector.
-""" # TODO DEPRECATED
-function trainpredict(data::AbstractDataFrame, train::AbstractDataFrame, configfile::String,
-                      y::Symbol, w::Union{Symbol, Void} = nothing;
-                      ylevels::AbstractArray = sort(unique(train[y])))
-    # prepare matrices
-    features = setdiff(names(train), w != nothing ? [y, w] : [y])
-    X_data,  _       = Util.df2Xy(data,  y, features)
-    X_train, y_train = Util.df2Xy(train, y, features)
-    w_train  = w != nothing ? train[w] : ones(size(train, 1))
-    
-    # configure and apply function object
-    trainpredict = train_and_predict_proba(classifier_from_config(configfile))
-    mat_prob     = trainpredict(X_data, X_train, y_train, w_train, ylevels)
-    
-    # matrix to DataFrame (zip levels with array of column arrays)
-    return Util.prob2df(mat_prob, ylevels)
-end
-
 
 
 abstract type ClusterDiscretization end
