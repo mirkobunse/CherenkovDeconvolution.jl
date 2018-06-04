@@ -7,6 +7,12 @@ else
 end
 
 
+# utilities
 include("util.jl")
 include("sklearn.jl")
+
+# methods
+include("dsea.jl")
+include("run.jl")
+include("ibu.jl")
 
