@@ -116,7 +116,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         
         # === update the estimate ===
         proba     = train_and_predict_proba(X_data, X_train, y_train, w_train)
-        f, alphak = _dsea_step(_dsea_reconstruct(proba), f_prev, alpha)
+        f, alphak = _dsea_step(k, _dsea_reconstruct(proba), f_prev, alpha)
         # = = = = = = = = = = = = = =
         
         # monitor progress
@@ -155,7 +155,7 @@ _dsea_reconstruct(proba::Matrix{Float64}) =
     Util.normalizepdf(map(i -> sum(proba[:, i]), 1:size(proba, 2)))
 
 # the step taken by DSEA+, where alpha may be a constant or a function
-function _dsea_step(f::Array{Float64, 1}, f_prev::Array{Float64, 1},
+function _dsea_step(k::Int64, f::Array{Float64, 1}, f_prev::Array{Float64, 1},
                     alpha::Union{Float64, Function})
     pk     = f - f_prev                                              # search direction
     alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev) # function or float

@@ -7,6 +7,7 @@ else
     using Test
 end
 
+srand(42) # tests are reproducible
 
 # utilities
 include("util.jl")
