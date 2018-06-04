@@ -70,7 +70,7 @@ end
         R = Util.fit_R(rand_y, rand_x, bins_y=bins_y, bins_x=bins_x)
         x_hist = Util.fit_pdf(rand_x, bins_x, normalize=false)
         y_hist = Util.fit_pdf(rand_y, bins_y, normalize=false)
-        @test x_hist == R * y_hist
+        @test x_hist ≈ R * y_hist  atol=1e-6
     end
 end
 
