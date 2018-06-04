@@ -19,9 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-using DataFrames, Discretizers, Polynomials # TODO DataFrames needed?
+using StatsBase, Discretizers, Polynomials, DataFrames
 
-export histogram, empiricaltransfer, normalizetransfer, normalizetransfer!
+export fit_pdf, fit_R, edges, normalizetransfer
 export normalizepdf, normalizepdf!, chi2s
 
 
@@ -34,16 +34,6 @@ function fit_pdf{T<:Int}(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(
                          normalize::Bool = true)
     h = fit(Histogram, x, edges(bins), closed=:left).weights
     return normalize ? normalizepdf(h) : h
-end
-
-"""
-    edges(x)
-
-Obtain the edges of an histogram of the integer array `x`.
-"""
-function edges{T<:Int}(x::AbstractArray{T,1})
-    xmin, xmax = extrema(x)
-    return xmin:(xmax+1)
 end
 
 
@@ -68,6 +58,17 @@ function fit_R{T<:Int}(y::AbstractArray{T,1}, x::AbstractArray{T,1};
     # estimate detector response matrix
     R = fit(Histogram, (x, y), (edges(bins_x), edges(bins_y)), closed=:left).weights
     return normalize ? normalizetransfer(R) : R
+end
+
+
+"""
+    edges(x)
+
+Obtain the edges of an histogram of the integer array `x`.
+"""
+function edges{T<:Int}(x::AbstractArray{T,1})
+    xmin, xmax = extrema(x)
+    return xmin:(xmax+1)
 end
 
 
@@ -165,33 +166,6 @@ end
 _WARN_NORMALIZE = true
 
 
-# TODO replace histogram() by fit_pdf
-
-
-"""
-    histogram(arr, levels = nothing)
-
-Return a histogram of `arr`, in which the unique values are optionally defined as `levels`.
-"""
-function histogram{T <: Number}(arr::AbstractArray{T,1}, levels::AbstractArray{T,1} = T[])
-    
-    # TODO replace by fit(Histogram, data[, weight][, edges]; closed=:right, nbins)
-    # http://juliastats.github.io/StatsBase.jl/stable/empirical.html#StatsBase.fit-Tuple{Type{StatsBase.Histogram},Vararg{Any,N}%20where%20N}
-    
-    df = DataFrame(arr = arr, n = repmat([1], length(arr)))
-    df = aggregate(df, :arr, sum) # compute histogram
-    rename!(df, names(df), [:level, :n])
-    if !isempty(levels)
-        for missing in setdiff(levels, df[:level])
-            push!(df, [missing, 0])
-        end
-        sort!(df, cols=[:level])
-    end
-    return convert(Array{Int64,1}, df[:n])
-    
-end
-
-
 """
     smoothpdf(arr, method=:polynomial; kwargs...)
 
@@ -261,4 +235,20 @@ function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normaliz
     b = b[selection]
     return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
 end
+
+
+"""
+    df2Xy(df, y, features = setdiff(names(df), [y])))
+
+Convert the DataFrame `df` to a tuple of the feature matrix `X` and the target column `y`.
+"""
+df2Xy(df::AbstractDataFrame, y::Symbol, features::Array{Symbol,1}=setdiff(names(df), [y])) =
+    df2X(df, features), convert(Array, df[y])
+
+"""
+    df2X(df, features = names(df))
+
+Convert the DataFrame `df` to a feature matrix `X`.
+"""
+df2X(df::AbstractDataFrame, features::AbstractArray{Symbol,1}=names(df)) = convert(Matrix, df[:, features])
 
