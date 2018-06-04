@@ -102,7 +102,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     
     # initial estimate
     f       = f_0
-    f_train = Util.fit_pdf(y_train)                              # training distribution
+    f_train = Util.fit_pdf(y_train, laplace=true)                # training pdf with Laplace correction
     w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f # bin weights
     w_train = _dsea_weights(y_train, w_bin)                      # instance weights
     if inspect != nothing

@@ -47,6 +47,11 @@ end
         rand_hist = Util.fit_pdf(rand_arr, 1:num_bins, normalize = false)
         @test sum(rand_hist) == num_items
         @test length(rand_hist) == num_bins
+        
+        # laplace correction
+        rand_arr[rand_arr .== 1] = 2 # replace full class, which consequently gets probability zero
+        @test Util.fit_pdf(rand_arr, 1:num_bins, normalize = false)[1] == 0
+        @test Util.fit_pdf(rand_arr, 1:num_bins, laplace = true, normalize = false)[1] == 1
     end
 end
 

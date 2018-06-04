@@ -31,8 +31,11 @@ export normalizepdf, normalizepdf!, chi2s
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
 """
 function fit_pdf{T<:Int}(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
-                         normalize::Bool = true)
+                         normalize::Bool=true, laplace::Bool=false)
     h = fit(Histogram, x, edges(bins), closed=:left).weights
+    if laplace
+        h = max.(h, 1)
+    end
     return normalize ? normalizepdf(h) : h
 end
 
