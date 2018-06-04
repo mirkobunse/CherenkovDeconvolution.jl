@@ -27,23 +27,47 @@ R = Util.normalizetransfer(R)
 end
 
 
-# histograms
-@test Util.histogram(y)      == [2, 1, 3]
+# pdfs
+@test Util.fit_pdf(y) == [ 1/3, 1/6, 1/2 ]
 
-@testset "Random histograms" begin
+@testset "Random pdfs" begin
     for _ in 1:10
+        
+        # random array
         num_bins  = rand(1:100)
         num_items = rand(1:1000)
-        rand_hist = Util.histogram(rand(1:num_bins, num_items), 1:num_bins)
+        rand_arr = rand(1:num_bins, num_items)
+        
+        # normalized pdf
+        rand_pdf = Util.fit_pdf(rand_arr, 1:num_bins)
+        @test sum(rand_pdf) ≈ 1  atol=1e-6
+        @test length(rand_pdf) == num_bins
+        
+        # unnormalized (histogram)
+        rand_hist = Util.fit_pdf(rand_arr, 1:num_bins, normalize = false)
         @test sum(rand_hist) == num_items
         @test length(rand_hist) == num_bins
     end
 end
 
 
-# fit_r
+# fit_R
 @test size(Util.fit_R(y, x)) == (2, 3)
 @test Util.fit_R(y, x) == R
+
+@testset "Random transfer matrices" begin
+    for _ in 1:10
+        bins_y = 1:rand(1:100)
+        bins_x = 1:rand(1:100)
+        num_items = rand(1:10000)
+        rand_x = rand(bins_x, num_items)
+        rand_y = rand(bins_y, num_items)
+        R = Util.fit_R(rand_y, rand_x, bins_y=bins_y, bins_x=bins_x)
+        x_hist = Util.fit_pdf(rand_x, bins_x, normalize=false)
+        y_hist = Util.fit_pdf(rand_y, bins_y, normalize=false)
+        @test x_hist == R * y_hist
+    end
+end
 
 
 # TODO smoothpdf

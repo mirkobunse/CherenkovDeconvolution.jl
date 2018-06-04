@@ -28,38 +28,47 @@ export normalizepdf, normalizepdf!, chi2s
 
 
 """    
-    fit_pdf(x)
+    fit_pdf(x[, bins])
 
-Obtain the discrete pdf of the integer array `x`.
+Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
 """
-fit_pdf{T<:Int}(x::AbstractArray{T, 1}) =
-    normalize(fit(Histogram, x, _edges(x), closed=:left), mode=:probability).weights
+function fit_pdf{T<:Int}(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
+                         normalize::Bool = true)
+    h = fit(Histogram, x, edges(bins), closed=:left).weights
+    return normalize ? normalizepdf(h) : h
+end
 
-@inline function _edges{T<:Int}(x::AbstractArray{T, 1})
+"""
+    edges(x)
+
+Obtain the edges of an histogram of the integer array `x`.
+"""
+function edges{T<:Int}(x::AbstractArray{T,1})
     xmin, xmax = extrema(x)
     return xmin:(xmax+1)
 end
 
 
 """
-    fit_R(y, x; normalize=true)
+    fit_R(y, x; bins_y, bins_x, normalize=true)
 
 Estimate the detector response matrix `R`, which empirically captures the transfer from the
 integer array `y` to the integer array `x`.
 
-`R` is normalized by default so that `histogram(x) = R * histogram(y)` holds.
-
+`R` is normalized by default so that `fit_pdf(x) == R * fit_pdf(y)`.
 If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
 """
-function fit_R{T<:Int}(y::AbstractArray{T, 1}, x::AbstractArray{T, 1};
+function fit_R{T<:Int}(y::AbstractArray{T,1}, x::AbstractArray{T,1};
+                       bins_y::AbstractArray{T,1}=unique(y),
+                       bins_x::AbstractArray{T,1}=unique(x),
                        normalize::Bool = true)
     # check arguments (not done by fit(::Histogram, ..))
     if length(y) != length(x)
-        throw(ArgumentError("x and y have a different dimension"))
+        throw(ArgumentError("x and y have different dimensions"))
     end
     
     # estimate detector response matrix
-    R = fit(Histogram, (x, y), (_edges(x), _edges(y)), closed=:left).weights
+    R = fit(Histogram, (x, y), (edges(bins_x), edges(bins_y)), closed=:left).weights
     return normalize ? normalizetransfer(R) : R
 end
 
