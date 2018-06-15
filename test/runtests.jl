@@ -7,14 +7,14 @@ else
     using Test
 end
 
-srand(42) # tests are reproducible
+srand(42) # make tests reproducible
 
 # utilities
 include("util.jl")
 include("sklearn.jl")
 
 # methods
-include("dsea.jl")
-include("run.jl")
-include("ibu.jl")
+include("methods/dsea.jl")
+include("methods/run.jl")
+include("methods/ibu.jl")
 
