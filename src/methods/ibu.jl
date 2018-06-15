@@ -1,87 +1,117 @@
 """
     ibu(data, train, y, x; kwargs...)
 
-Iterative Bayesian Unfolding of the `y` distribution in the DataFrame `data`.
+Iterative Bayesian Unfolding of the target distribution in the DataFrame `data`. The
+deconvolution is inferred from the DataFrame `train`, where the target column `y` and the
+observable column `x` are given.
 
-Given is the observable column `x` and in the `train` DataFrame also the target column `y`.
-This method wraps `ibu(R, g)` constructing `R` and `g` from the events in the DataFrames.
-
-### Additional keyword arguments
-
-- `ylevels` optionally specifies the discrete levels of `y`
-- `xlevels` optionally specifies the discrete levels of `x`
+This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
+the two DataFrames.
 """
-function ibu{T1 <: Number, T2 <: Number}(data::DataFrame, train::DataFrame,
-                                         y::Symbol, x::Symbol;
-                                         ylevels::AbstractArray{T1, 1} = sort(unique(train[y])),
-                                         xlevels::AbstractArray{T2, 1} = sort(unique(train[x])),
-                                         kwargs...)
-    
-    # estimate response and observable distribution
-    R = Util.empiricaltransfer(train[y], train[x], xlevels = xlevels, ylevels = ylevels)
-    g = Util.histogram(data[x], xlevels)
-    
-    return ibu(R, g; kwargs...)
-    
-end
+ibu(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol, x::Symbol; kwargs...) =
+    ibu(data[x], train[x], train[y]; kwargs...)
+
+"""
+    ibu(x_data, x_train, y_train; kwargs...)
+
+Iterative Bayesian Unfolding of the target distribution, given the observations in the
+one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and `y_train`.
+
+This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
+the three arrays.
+"""
+ibu{T<:Int}(x_data::AbstractArray{T, 1}, x_train::AbstractArray{T, 1},
+            y_train::AbstractArray{T, 1}; kwargs...) =
+    ibu(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data); kwargs...)
 
 """
     ibu(R, g; kwargs...)
 
-Iterative Bayesian Unfolding with the detector response function `R` and the observable
-distribution `g`.
+Iterative Bayesian Unfolding with the detector response matrix `R` and the observable
+density function `g`.
 
 ### Keyword arguments
 
-- `f_0 = [1/m, .., 1/m]` is the prior target distribution (default is uniform with `m` bins).
-- `K = 3` is the maximum number of iterations.
-- `epsilon::Float64 = 0` is the minimum symmetric Chi Square distance between iterations.
-- `smoothing::Symbol = :none` can also be set to `:polynomial` to apply polynomial smoothing
-  [dagostini2010improved], or any other `method` accepted by `smoothpdf`.
-  The operation is neither applied to the initial prior, nor to the final result,
-  and not to any of the spectra fed into `inspect`.
-- `inspect` is an optional function `(k::Int, chi2s::Float, f_k::DataFrame) -> Any` called
-  in every iteration `k`.
-
-Any other keyword argument is forwarded to the smoothing operation (if smoothing is applied).
+- `f_0 = ones(m) ./ m`
+  defines the prior, which is uniform by default.
+- `smoothing = Base.identity`
+  is a function that optionally applies smoothing in between iterations. The operation is
+  neither applied to the initial prior, nor to the final result. The function `inspect` is
+  called before the smoothing is performed.
+- `K = 3`
+  is the maximum number of iterations.
+- `epsilon = 0.0`
+  is the minimum symmetric Chi Square distance between iterations. If the actual distance is
+  below this threshold, convergence is assumed and the algorithm stops.
+- `inspect = nothing`
+  is a function `(k::Int, chi2s::Float64, f_k::Array) -> Any` optionally called in every
+  iteration.
+- `loggingstream = DevNull`
+  is an optional `IO` stream to write log messages to.
 """
-function ibu{T<:Number}(R::AbstractArray{Float64, 2}, g::AbstractArray{T, 1};
-                        f_0::AbstractArray{Float64, 1} = ones(size(R, 2)) ./ size(R, 2),
-                        K::Int = 3, epsilon::Float64 = 0.0, smoothing::Symbol = :none,
-                        inspect::Function = (k, f) -> nothing,
-                        kwargs...)
+function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
+                        f_0::Array{Float64, 1} = Float64[],
+                        smoothing::Function = Base.identity,
+                        K::Int = 3,
+                        epsilon::Float64 = 0.0,
+                        inspect::Union{Function, Void} = nothing,
+                        loggingstream::IO = DevNull)
     
-    N   = sum(g) # number of examples
-    f_0 = Util.normalizepdf(f_0)
-    inspect(0, NaN, f_0 .* N) # inspect prior
+    # check positional arguments
+    if size(R, 1) != length(g)
+        throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
+    end
+    
+    # check prior
+    if length(f_0) == 0
+        f_0 = ones(size(R, 2)) ./ size(R, 2)
+    elseif length(f_0) != size(R, 2)
+        throw(DimensionMismatch("dim(f_0) != $(size(R, 2)), the number of classes"))
+    else # f_0 is provided and alright
+        f_0 = Util.normalizepdf(f_0) # ensure pdf
+    end
+    
+    # initial estimate
+    f = Util.normalizepdf(f_0)
+    if inspect != nothing
+        inspect(0, NaN, f) # inspect prior
+    end
     
     # iterative Bayesian deconvolution
     for k in 1:K
+        f_prev = f
         
-        # apply Bayes' rule, compute the X^2 distance, and update the prior
-        f_k   = Util.normalizepdf(_ibu_reverse_transfer(R, f_0) * g)
-        chi2s = Util.chi2s(f_0, f_k, false)
-        f_0   = f_k
-        inspect(k, chi2s, f_0 .* N)
+        # === apply Bayes' rule ===
+        f = Util.normalizepdf(_ibu_reverse_transfer(R, f_prev) * g)
+        # = = = = = = = = = = = = =
+        
+        # monitor progress
+        chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
+        info(loggingstream, "IBU iteration $k/$K (chi2s = $chi2s)")
+        if inspect != nothing
+            inspect(k, chi2s, f)
+        end
         
         # stop when convergence is assumed
         if chi2s < epsilon
-            # info("IBU convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
+            info(loggingstream, "IBU convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
             break
         end
         
-        # smoothing is an intermediate step not performed on the last iteration
+        # == smoothing in between iterations ==
         if k < K
-            f_0 = Util.smoothpdf(f_0, smoothing; kwargs...)
+            f = smoothing(f)
         end
+        # = = = = = = = = = = = = = = = = = = =
         
     end
-    return f_0 .* N # return last estimate
+    
+    return f # return last estimate
     
 end
 
 # reverse the transfer with Bayes' rule, given the transfer matrix R and the prior f_0
-function _ibu_reverse_transfer{T <: Number}(R::Array{Float64, 2}, f_0::AbstractArray{T, 1})
+function _ibu_reverse_transfer(R::Matrix{Float64}, f_0::Array{Float64, 1})
     B = zeros(R')
     for j in 1:size(R, 1)
         B[:, j] = R[j, :] .* f_0 ./ dot(R[j, :], f_0)

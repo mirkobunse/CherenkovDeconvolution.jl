@@ -49,8 +49,8 @@ number of unique values that are used as labels for the classifier.
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
 - `inspect = nothing`
-  is a function `(k::Int, alpha::Float64, chi2s::Float64, spectrum::Array) -> Any`
-  optionally called in every iteration.
+  is a function `(k::Int, alpha::Float64, chi2s::Float64, f_k::Array) -> Any` optionally
+  called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 - `return_contributions = false`
@@ -85,7 +85,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     
     # check positional arguments
     m = maximum(y_train) # number of classes / dimension of f
-    if extrema(y_train) != (1, m)
+    if minimum(y_train) != 1
         throw(ArgumentError("Target value indices in y_train do not range from 1 to $m"))
     elseif size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
@@ -120,7 +120,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         # = = = = = = = = = = = = = =
         
         # monitor progress
-        chi2s = Util.chi2s(f_prev, f) # Chi Square distance between iterations
+        chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
         info(loggingstream, "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)")
         if inspect != nothing
             inspect(k, alphak, chi2s, f)

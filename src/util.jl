@@ -59,7 +59,7 @@ function fit_R{T<:Int}(y::AbstractArray{T,1}, x::AbstractArray{T,1};
     end
     
     # estimate detector response matrix
-    R = fit(Histogram, (x, y), (edges(bins_x), edges(bins_y)), closed=:left).weights
+    R = fit(Histogram, (convert(Array, x), convert(Array, y)), (edges(bins_x), edges(bins_y)), closed=:left).weights
     return normalize ? normalizetransfer(R) : R
 end
 
