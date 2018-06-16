@@ -25,7 +25,7 @@ module CherenkovDeconvolution
 using DataFrames
 
 export Util, Sklearn
-export dsea
+export dsea, ibu
 
 
 # utility module

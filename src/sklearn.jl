@@ -28,7 +28,8 @@ import CherenkovDeconvolution.Util
 @sk_import cluster     : KMeans
 
 
-export train_and_predict_proba, ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
+export ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
+export train_and_predict_proba, encode, bins
 
 
 """
@@ -65,13 +66,17 @@ type TreeDiscretizer{T<:Number} <: ClusterDiscretizer{T}
     indexmap::Dict{Int64,Int64}
 end
 
-function TreeDiscretizer{TN<:Number,TI<:Int}(X_train::Matrix{TN}, y_train::Array{TI,1},
-                                             J::Int, criterion::String="gini";
-                                             seed::UInt32=rand(UInt32))
+TreeDiscretizer(X_train::AbstractMatrix, y_train::AbstractArray, args...; kwargs...) =
+    TreeDiscretizer(convert(Array, X_train), convert(Array, y_train), args...; kwargs...)
+
+function TreeDiscretizer{TN<:Number,TI<:Int}(X_train::Matrix{TN},
+                                             y_train::Array{TI,1},
+                                             J::TI, criterion::String="gini";
+                                             seed::Integer=rand(UInt32))
     # train classifier
     classifier = DecisionTreeClassifier(max_leaf_nodes = J,
                                         criterion      = criterion,
-                                        random_state   = seed)
+                                        random_state   = convert(UInt32, seed))
     ScikitLearn.fit!(classifier, X_train, y_train)
     
     # create some "nice" indices 1,...n
@@ -86,8 +91,8 @@ end
 Discretize the `data` by using the leaf indices in the decision tree of `d` as discrete
 values. `d` is obtained from `TreeDiscretizer()`.
 """
-function encode{T<:Number}(d::TreeDiscretizer{T}, X_data::Matrix{T})
-    x_data = _apply(d.model, X_data)
+function Discretizers.encode{T<:Number}(d::TreeDiscretizer{T}, X_data::AbstractMatrix{T})
+    x_data = _apply(d.model, convert(Array, X_data))
     return map(i -> d.indexmap[i], convert(Array{Int64,1}, x_data))
 end
 
@@ -119,7 +124,7 @@ end
 Discretize the `data` by using its cluster indices in the clustering `d` as discrete
 values. `d` is obtained from `KMeansDiscretizer()`.
 """
-encode{T<:Number}(d::KMeansDiscretizer{T}, X_data::Matrix{T}) =
+Discretizers.encode{T<:Number}(d::KMeansDiscretizer{T}, X_data::Matrix{T}) =
     convert(Array{Int64, 1}, ScikitLearn.predict(d.model, X_data)) .+ 1
 
 bins(d::KMeansDiscretizer) = collect(1:d.k)

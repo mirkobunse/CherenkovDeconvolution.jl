@@ -22,7 +22,7 @@ the three arrays.
 """
 ibu{T<:Int}(x_data::AbstractArray{T, 1}, x_train::AbstractArray{T, 1},
             y_train::AbstractArray{T, 1}; kwargs...) =
-    ibu(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data); kwargs...)
+    ibu(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs...)
 
 """
     ibu(R, g; kwargs...)
