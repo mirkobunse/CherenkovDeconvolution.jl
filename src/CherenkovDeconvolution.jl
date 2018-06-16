@@ -25,7 +25,7 @@ module CherenkovDeconvolution
 using DataFrames
 
 export Util, Sklearn
-export dsea, ibu
+export dsea, ibu, run
 
 
 # utility module
@@ -44,7 +44,7 @@ end
 
 
 # deconvolution methods
-# include("methods/run.jl")
+include("methods/run.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
 

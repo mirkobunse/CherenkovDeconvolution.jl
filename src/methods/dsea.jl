@@ -150,3 +150,28 @@ function _dsea_step(k::Int64, f::Array{Float64, 1}, f_prev::Array{Float64, 1},
     return  f_prev + alphak * pk,  alphak                            # return tuple
 end
 
+
+"""
+    alphadecay_exp(eta::Float64, a_1::Float64=1.0)
+
+Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
+Will reduce the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent iteration:
+
+    alpha = a_1 * eta^(k-1).
+"""
+alphadecay_exp(eta::Float64, a_1::Float64=1.0) =
+    (k::Int, pk::AbstractArray{Float64,1}, f::AbstractArray{Float64,1}) -> a_1 * eta^(k-1)
+
+"""
+    alphadecay_mul(eta::Float64, a_1::Float64=1.0)
+
+Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
+Will reduce the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent iteration:
+
+    alpha = a_1 * k ^ (eta-1)
+    
+For example, eta=.5 yields alpha = 1/sqrt(k).
+"""
+alphadecay_mul(eta::Float64, a_1::Float64=1.0) =
+    (k::Int, pk::AbstractArray{Float64,1}, f::AbstractArray{Float64,1}) -> a_1 * k^(eta-1)
+
