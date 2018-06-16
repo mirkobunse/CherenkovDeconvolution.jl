@@ -75,7 +75,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
                                    smoothing::Function = Base.identity,
                                    K::Int64 = 1,
                                    epsilon::Float64 = 0.0,
-                                   inspect::Union{Function, Void} = nothing,
+                                   inspect::Function = (args...) -> nothing,
                                    loggingstream::IO = DevNull,
                                    return_contributions::Bool = false)
     # 
@@ -83,31 +83,21 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     # ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used.
     # 
     
-    # check positional arguments
+    # check arguments
     m = maximum(y_train) # number of classes / dimension of f
     if minimum(y_train) != 1
         throw(ArgumentError("Target value indices in y_train do not range from 1 to $m"))
     elseif size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
     end
-    
-    # check prior
-    if length(f_0) == 0
-        f_0 = ones(m) ./ m
-    elseif length(f_0) != m
-        throw(DimensionMismatch("dim(f_0) != $m, the number of classes"))
-    else # f_0 is provided and alright
-        f_0 = Util.normalizepdf(f_0) # ensure pdf
-    end
+    f_0 = _check_prior(f_0, m)
     
     # initial estimate
     f       = f_0
     f_train = Util.fit_pdf(y_train, laplace=true)                # training pdf with Laplace correction
     w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f # bin weights
     w_train = _dsea_weights(y_train, w_bin)                      # instance weights
-    if inspect != nothing
-        inspect(0, NaN, NaN, f)
-    end
+    inspect(0, NaN, NaN, f)
     
     # iterative deconvolution
     proba = Matrix{Float64}(0, 0) # empty matrix
@@ -122,9 +112,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
         info(loggingstream, "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)")
-        if inspect != nothing
-            inspect(k, alphak, chi2s, f)
-        end
+        inspect(k, alphak, chi2s, f)
         
         # stop when convergence is assumed
         if chi2s < epsilon # also holds when alpha is zero

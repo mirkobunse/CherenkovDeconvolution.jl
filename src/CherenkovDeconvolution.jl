@@ -49,4 +49,16 @@ include("methods/ibu.jl")
 include("methods/dsea.jl")
 
 
+# additional helpers
+function _check_prior(f_0::Array{Float64, 1}, m::Int64)
+    if length(f_0) == 0
+        return ones(m) ./ m
+    elseif length(f_0) != m
+        throw(DimensionMismatch("dim(f_0) != $m, the number of classes"))
+    else # f_0 is provided and alright
+        return Util.normalizepdf(f_0) # ensure pdf
+    end
+end
+
+
 end # module

@@ -54,28 +54,18 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
                         smoothing::Function = Base.identity,
                         K::Int = 3,
                         epsilon::Float64 = 0.0,
-                        inspect::Union{Function, Void} = nothing,
+                        inspect::Function = (args...) -> nothing,
                         loggingstream::IO = DevNull)
     
-    # check positional arguments
+    # check arguments
     if size(R, 1) != length(g)
         throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
     end
-    
-    # check prior
-    if length(f_0) == 0
-        f_0 = ones(size(R, 2)) ./ size(R, 2)
-    elseif length(f_0) != size(R, 2)
-        throw(DimensionMismatch("dim(f_0) != $(size(R, 2)), the number of classes"))
-    else # f_0 is provided and alright
-        f_0 = Util.normalizepdf(f_0) # ensure pdf
-    end
+    f_0 = _check_prior(f_0, size(R, 2))
     
     # initial estimate
     f = Util.normalizepdf(f_0)
-    if inspect != nothing
-        inspect(0, NaN, f) # inspect prior
-    end
+    inspect(0, NaN, f) # inspect prior
     
     # iterative Bayesian deconvolution
     for k in 1:K
@@ -88,9 +78,7 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
         info(loggingstream, "IBU iteration $k/$K (chi2s = $chi2s)")
-        if inspect != nothing
-            inspect(k, chi2s, f)
-        end
+        inspect(k, chi2s, f)
         
         # stop when convergence is assumed
         if chi2s < epsilon
