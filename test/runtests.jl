@@ -1,4 +1,4 @@
-using ScikitLearn, Distances
+using ScikitLearn, Distances, NBInclude
 using CherenkovDeconvolution
 using CherenkovDeconvolution.Util
 using CherenkovDeconvolution.Sklearn
@@ -37,4 +37,7 @@ end
 include("methods/dsea.jl")
 include("methods/run.jl")
 include("methods/ibu.jl")
+
+# check that no error occurs in example notebooks
+nbinclude("../example/getting-started.ipynb")
 
