@@ -1,33 +1,35 @@
 """
-    dsea(data, train, y, train_and_predict_proba;
+    dsea(data, train, y, train_and_predict_proba[, bins;
          features = setdiff(names(train), [y]),
-         kwargs...)
+         kwargs...])
 
 Deconvolve the `y` distribution in the DataFrame `data`, as learned from the DataFrame
 `train`. This function wraps `dsea(::Matrix, ::Matrix, ::Array, ::Function)`.
 
-The additional keyword arguments allows to specify the columns in `data` and `train` to be
+The additional keyword argument allows to specify the columns in `data` and `train` to be
 used as the `features`.
 """
 function dsea(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol,
-              train_and_predict_proba::Function;
+              train_and_predict_proba::Function,
+              bins::AbstractArray = 1:maximum(train[y]);
               features::AbstractArray{Symbol, 1} = setdiff(names(train), [y]),
               kwargs...)
     X_data,  _       = Util.df2Xy(data,  y, features)
     X_train, y_train = Util.df2Xy(train, y, features)
-    dsea(X_data, X_train, y_train, train_and_predict_proba; kwargs...)
+    dsea(X_data, X_train, y_train, train_and_predict_proba, bins; kwargs...)
 end
 
 """
-    dsea(X_data, X_train, y_train, train_and_predict_proba; kwargs...)
+    dsea(X_data, X_train, y_train, train_and_predict_proba[, bins; kwargs...])
 
 Deconvolve the target distribution of `X_data`, as learned from `X_train` and `y_train`.
-The function `train_and_predict_proba` trains and applies a classifier. It has the signature
-`(X_data, X_train, y_train, w_train) -> Any`
-where all arguments but `w_train`, which is updated in each iteration, are simply passed
-through.
-To facilitate classification, `y_train` has to be discrete, i.e., it has to have a limited
-number of unique values that are used as labels for the classifier.
+
+The function `train_and_predict_proba(X_data, X_train, y_train, w_train) -> Any` trains and
+applies a classifier. All of its arguments but `w_train`, which is updated in each iteration,
+are simply passed through from `dsea`.
+To facilitate classification, `y_train` has to be discrete, i.e., it must contain label
+indices rather than actual values. All expected indices (for cases where `y_train` may not
+contain some of the indices) are optionally provided as `bins`.
 
 # Keyword arguments
 - `f_0 = ones(m) ./ m`
@@ -60,15 +62,17 @@ number of unique values that are used as labels for the classifier.
 dsea{TN<:Number, TI<:Int}(X_data::AbstractMatrix{TN},
                           X_train::AbstractMatrix{TN},
                           y_train::AbstractArray{TI, 1},
-                          train_and_predict_proba::Function;
+                          train_and_predict_proba::Function,
+                          bins::AbstractArray{TI, 1} = 1:maximum(y_train);
                           kwargs...) =
     dsea(convert(Array, X_data), convert(Array, X_train), convert(Array, y_train),
-         train_and_predict_proba; kwargs...)
+         train_and_predict_proba, bins; kwargs...)
 
 function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
                                    X_train::Matrix{TN},
                                    y_train::Array{TI, 1},
-                                   train_and_predict_proba::Function;
+                                   train_and_predict_proba::Function,
+                                   bins::AbstractArray{TI, 1} = 1:maximum(y_train);
                                    f_0::Array{Float64, 1} = Float64[],
                                    fixweighting::Bool = true,
                                    alpha::Union{Float64, Function} = 1.0,
@@ -83,14 +87,12 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     # ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used.
     # 
     
-    # check arguments
-    m = maximum(y_train) # number of classes / dimension of f
-    if minimum(y_train) != 1
-        throw(ArgumentError("Target value indices in y_train do not range from 1 to $m"))
-    elseif size(X_data, 2) != size(X_train, 2)
+    # recode labels and check arguments
+    y_train, recode_dict = _recode_labels(y_train, bins)
+    if size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
     end
-    f_0 = _check_prior(f_0, m)
+    f_0 = _check_prior(f_0, recode_dict)
     
     # initial estimate
     f       = f_0
@@ -130,7 +132,10 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         
     end
     
-    return return_contributions ? (f, proba) : f # result may contain contributions
+    f_rec = _recode_result(f, recode_dict) # revert recoding of labels
+    return return_contributions ? (f_rec, proba) : f_rec # result may contain contributions
+    
+    # TODO proba still has to be recoded, too!
     
 end
 

@@ -1,5 +1,5 @@
 """
-    ibu(data, train, y, x; kwargs...)
+    ibu(data, train, x, y[, bins_y; kwargs...])
 
 Iterative Bayesian Unfolding of the target distribution in the DataFrame `data`. The
 deconvolution is inferred from the DataFrame `train`, where the target column `y` and the
@@ -8,21 +8,40 @@ observable column `x` are given.
 This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the two DataFrames.
 """
-ibu(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol, x::Symbol; kwargs...) =
-    ibu(data[x], train[x], train[y]; kwargs...)
+ibu(data::AbstractDataFrame, train::AbstractDataFrame, x::Symbol, y::Symbol,
+    bins_y::AbstractArray = 1:maximum(train[y]); kwargs...) =
+  ibu(data[x], train[x], train[y], bins_y; kwargs...)
 
 """
-    ibu(x_data, x_train, y_train; kwargs...)
+    ibu(x_data, x_train, y_train[, bins_y; kwargs...])
 
 Iterative Bayesian Unfolding of the target distribution, given the observations in the
-one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and `y_train`.
+one-dimensional array `x_data`.
+
+The deconvolution is inferred from `x_train` and `y_train`. Both of these arrays have to be
+discrete, i.e., they must contain indices instead of actual values. All expected label
+indices (for cases where `y_train` may not contain some of the indices) are optionally
+provided as `bins_y`.
 
 This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
 """
-ibu{T<:Int}(x_data::AbstractArray{T, 1}, x_train::AbstractArray{T, 1},
-            y_train::AbstractArray{T, 1}; kwargs...) =
-    ibu(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs...)
+function ibu{T<:Int}(x_data::AbstractArray{T, 1},
+                     x_train::AbstractArray{T, 1},
+                     y_train::AbstractArray{T, 1},
+                     bins_y::AbstractArray{T, 1} = 1:maximum(y_train);
+                     kwargs...)
+    # recode labels
+    y_train, recode_dict = _recode_labels(y_train, bins_y)
+    kwargs_dict = Dict(kwargs)
+    if haskey(kwargs_dict, :f_0)
+        kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
+    end
+    
+    # deconvolve
+    f = ibu(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs_dict...)
+    return _recode_result(f, recode_dict) # revert recoding of labels
+end
 
 """
     ibu(R, g; kwargs...)
