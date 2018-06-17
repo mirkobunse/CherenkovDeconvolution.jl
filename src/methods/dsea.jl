@@ -31,7 +31,8 @@ To facilitate classification, `y_train` has to be discrete, i.e., it must contai
 indices rather than actual values. All expected indices (for cases where `y_train` may not
 contain some of the indices) are optionally provided as `bins`.
 
-# Keyword arguments
+**Keyword arguments**
+
 - `f_0 = ones(m) ./ m`
   defines the prior, which is uniform by default
 - `fixweighting = false`

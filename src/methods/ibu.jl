@@ -49,7 +49,7 @@ end
 Iterative Bayesian Unfolding with the detector response matrix `R` and the observable
 density function `g`.
 
-### Keyword arguments
+**Keyword arguments**
 
 - `f_0 = ones(m) ./ m`
   defines the prior, which is uniform by default.
