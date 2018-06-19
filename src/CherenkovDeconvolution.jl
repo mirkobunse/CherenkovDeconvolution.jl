@@ -26,6 +26,7 @@ using DataFrames
 
 export Util, Sklearn
 export dsea, ibu, run
+export alphadecay_exp, alphadecay_mul
 
 
 # utility module
