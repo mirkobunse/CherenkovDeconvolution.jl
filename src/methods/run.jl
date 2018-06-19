@@ -183,22 +183,22 @@ end
 
 
 # objective function: negative log-likelihood
-_maxl_l{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                   C::Array{Float64,2}=zeros(size(R, 2), size(R, 2))) =
+_maxl_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
+                   C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
     f -> sum(begin
         fj = dot(R[j,:], f)
         fj - g[j]*real(log(complex(fj)))
     end for j in 1:length(g)) + tau/2 * dot(f, C*f)
 
 # gradient of objective
-_maxl_g{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                   C::Array{Float64,2}=zeros(size(R, 2), size(R, 2))) =
+_maxl_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
+                   C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
     f -> [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
            for i in 1:length(f) ] + tau * C * f
 
 # hessian of objective
-_maxl_H{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                   C::Array{Float64,2}=zeros(size(R,2), size(R,2))) =
+_maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
+                   C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
@@ -211,19 +211,19 @@ _maxl_H{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
 
 
 # objective function: least squares
-_lsq{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                C::Array{Float64,2}=zeros(size(R, 2), size(R, 2))) =
+_lsq_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
+                  C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
     f -> sum([ (g[j] - dot(R[j,:], f))^2 / g[j] for j in 1:length(g) ])/2 + tau/2 * dot(f, C*f)
 
 # gradient of objective
-_lsq_g{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                  C::Array{Float64,2}=zeros(size(R, 2), size(R, 2))) =
+_lsq_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
+                  C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
     f -> [ sum([ -R[j,i] * (g[j] - dot(R[j,:], f)) / g[j] for j in 1:length(g) ])
            for i in 1:length(f) ] + tau * C * f
 
 # hessian of objective
-_lsq_H{T<:Number}(R::Array{Float64,2}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                  C::Array{Float64,2}=zeros(size(R, 2), size(R, 2))) =
+_lsq_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
+                  C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
