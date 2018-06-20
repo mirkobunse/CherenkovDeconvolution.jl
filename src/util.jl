@@ -168,61 +168,37 @@ function normalizepdf!(a::AbstractArray...)
 end
 _WARN_NORMALIZE = true
 
-
 """
-    smoothpdf(arr, method=:polynomial; kwargs...)
+    polynomial_smoothing([o = 2])
 
-Smooth the array values by a fit of the given order [dagostini2010improved].
+Create a function object `f -> smoothing(f)` which smoothes its argument with a polynomial
+of order `o`.
 """
-function smoothpdf{T<:Number}(abstractarr::AbstractArray{T,1}, method::Symbol=:polynomial; kwargs...)
-    arr = convert(Array, abstractarr) # fixes bug occuring with DataArrays
-    scale = sum(arr) # number of examples, or 1 for pdf input
-    
-    # actual smoothing
-    arr = if method == :none
-              copy(arr) # no smoothing, for convenience
-          elseif method == :polynomial
-              smooth_polynomial(arr; kwargs...)
-          elseif method == :gmm
-              smooth_gmm(arr; kwargs...)
-          else
-              error("Smoothing method '$method' is not valid")
-          end
-    
-    # replace values < 0
-    if any(arr .< 0)
-        warn("Smoothing results in values < 0. Averaging values of neighbours for these.")
-        for i in find(arr .< 0)
-            arr[i] = if i == 1
-                         arr[i+1] / 2
-                     elseif i == length(arr)
-                         arr[i-1] / 2
-                     else
-                         (arr[i+1] + arr[i-1]) / 4 # half the average [dagostini2010improved]
-                     end
+polynomial_smoothing(o::Int=2) =
+    (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
+        if o < length(f)
+            # return the values of a fitted polynomial
+            _repair_smoothing( polyval(polyfit(1:length(f), f, o), 1:length(f)) )
+        else
+            throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
         end
     end
-    
-    # normalize and rescale
-    (if sum(arr) > 0
-        arr ./ sum(arr)
-    else
-        warn("Smoothing results in zero-array. Returning uniform distribution, instead.")
-        repmat([ 1/length(arr) ], length(arr))
-    end) .* scale
-    
-end
 
-smooth_polynomial{T<:Number}(arr::Array{T,1}; order::Int=2) =
-    if order < length(arr) # precondition
-        polyval(polyfit(1:length(arr), arr, order), 1:length(arr)) # values of fitted polynomial
-    else
-        error("Polynomial smoothing with order = $order > length(arr) = $(length(arr)) is not possible")
+function _repair_smoothing(f::Array{Float64,1}) # may be used in other smoothing functions
+    if any(f .< 0) # average values of neighbors for all values < 0
+        warn("Averaging values of neighbours for negative values returned by smoothing")
+        for i in find(f .< 0)
+            f[i] = if i == 1
+                       f[i+1] / 2
+                   elseif i == length(f)
+                       f[i-1] / 2
+                   else
+                       (f[i+1] + f[i-1]) / 4 # half the average [dagostini2010improved]
+                   end
+        end
     end
-
-smooth_gmm{T<:Number}(arr::AbstractArray{T,1}; n::Int=1) =
-    error("Not yet implemented") # values of fitted Gaussian Mixture Model
-
+    return normalizepdf(f)
+end
 
 """
     chi2s(a, b, normalize = true)

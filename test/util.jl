@@ -75,7 +75,24 @@ end
 end
 
 
-# TODO smoothpdf
+# polynomial_smoothing
+@testset "Polynomial smoothing" begin
+    for i in 1:10
+        
+        # simple order 1 check
+        num_bins = rand(100:1000)
+        f_rand   = Util.normalizepdf(rand(num_bins))
+        f_smooth = Util.polynomial_smoothing(1)(f_rand) # apply smoothing of order 1 to f_rand
+        diffs = f_smooth[2:end] - f_smooth[1:end-1]     # array of finite differences
+        @test all(isapprox.(diffs, mean(diffs)))        # all differences approximately equal
+        
+        # multiple smoothings return approximately same array
+        smoothing = Util.polynomial_smoothing(i)
+        f_smooth  = smoothing(f_rand)
+        @test isapprox(f_smooth, smoothing(f_smooth)) # twice smoothing does not change result
+        
+    end
+end
 
 
 # chi2s
