@@ -22,7 +22,7 @@
 using StatsBase, Discretizers, Polynomials, DataFrames
 
 export fit_pdf, fit_R, edges, normalizetransfer
-export normalizepdf, normalizepdf!, chi2s
+export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
 
 
 """    
