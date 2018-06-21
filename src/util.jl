@@ -200,6 +200,51 @@ function _repair_smoothing(f::Array{Float64,1}) # may be used in other smoothing
     return normalizepdf(f)
 end
 
+
+"""
+    expansion_discretizer(ld, factor)
+
+Create a copy of the LinearDiscretizer `ld`, which uses a multiple of the original number of
+bins. The resulting discretizer can be used to obtain an expanded problem from continuous
+target values.
+"""
+function expansion_discretizer(ld::LinearDiscretizer, factor::Int)
+    ymin, ymax = extrema(ld)
+    num_bins   = length(bincenters(ld))
+    return LinearDiscretizer(linspace(ymin, ymax, factor * num_bins + 1))
+end
+
+"""
+    reduce(f, factor[, keepdim = false; normalize = true])
+
+Reduce the deconvolution result `f`. The parameter `keepdim` specifies, if the result is
+re-expanded to the original dimension of `f`, afterwards.
+
+You can set `keepdim = false` to reduce solutions of a previously expanded deconvolution
+problem. `keepdim = true` is useful if you reduce a solution of a non-expanded problem, and
+want to compare the reduced result to non-reduced results.
+"""
+function reduce{TN<:Number}(f::Array{TN,1}, factor::Int, keepdim::Bool=false; normalize::Bool=true)
+    
+    # combine bins of f
+    imax   = length(f) - factor + 1 # maximum edge index
+    iedges = 1:factor:imax          # indices of new edges with respect to f
+    if length(f) % factor > 0       # add potentially missing edge
+        iedges = vcat(iedges, imax + 1)
+    end
+    f_red = map(i -> sum(f[i:min(length(f), i + factor - 1)]), iedges)
+    
+    # keep input dimension, if desired
+    if !keepdim
+        return normalize ? normalizepdf(f_red) : f_red
+    else
+        f_exp = vcat(map(v -> repmat([v], factor), f_red)...)[1:length(f)] # re-expand
+        return normalize ? normalizepdf(f_exp) : f_exp
+    end
+    
+end
+
+
 """
     chi2s(a, b, normalize = true)
 

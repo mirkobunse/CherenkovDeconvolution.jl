@@ -95,6 +95,40 @@ end
 end
 
 
+# expansion / reduction
+@testset "Expansion / reduction" begin
+    for _ in 1:10
+        
+        # random discretizer
+        num_bins = rand(10:100)
+        edges = sort(rand(num_bins + 1)) # random bin edges
+        disc  = LinearDiscretizer(edges)
+        bins  = 1:length(bincenters(disc)) # bin indices
+        @test extrema(disc) == extrema(edges)
+        @test length(bins) == num_bins
+        
+        # expansion
+        factor   = rand(1:10)
+        disc_exp = Util.expansion_discretizer(disc, factor)
+        bins_exp = 1:length(bincenters(disc_exp))
+        @test length(bins)     == length(edges) - 1
+        @test length(bins_exp) == length(bins) * factor
+                
+        # reduction
+        f_rand = Util.normalizepdf(rand(length(bins_exp))) # random expanded pdf
+        f_red  = Util.reduce(f_rand, factor, normalize = false)
+        @test length(f_red) == num_bins
+        @test f_red == map(i -> sum(f_rand[i:(i + factor - 1)]), 1:factor:length(f_rand))
+        
+        f_red_full = Util.reduce(f_rand, factor, true, normalize = false)
+        @test all(map(i -> all(isapprox.(f_red_full[i:(i + factor - 1)],
+                                         mean(f_red_full[i:(i + factor - 1)]))),
+                      1:factor:length(f_red_full)))
+        
+    end
+end
+
+
 # chi2s
 @testset "Chi Square distance" begin
     for _ in 1:10

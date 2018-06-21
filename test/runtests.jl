@@ -1,4 +1,4 @@
-using ScikitLearn, Distances, NBInclude
+using ScikitLearn, Distances, Discretizers, NBInclude
 using CherenkovDeconvolution
 using CherenkovDeconvolution.Util
 using CherenkovDeconvolution.Sklearn
