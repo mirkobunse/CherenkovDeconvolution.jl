@@ -23,6 +23,7 @@ using StatsBase, Discretizers, Polynomials, DataFrames
 
 export fit_pdf, fit_R, edges, normalizetransfer
 export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
+export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
 
 
 """    
@@ -254,6 +255,16 @@ monitor the progress of a deconvolution method operating on an expanded problem.
 """
 inspect_expansion(inspect::Function, factor::Int) =
     (f, args...) -> inspect(reduce(f, factor), args...)
+
+
+"""
+    inspect_reduction(inspect, factor)
+
+Create a function object for the inspection of deconvolution methods, which wraps the given
+`inspect` function so that reduced solutions are inspected.
+"""
+inspect_reduction(inspect::Function, factor::Int) =
+    (f, args...) -> inspect(reduce(f, factor, true), args...)
 
 
 """
