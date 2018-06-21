@@ -52,7 +52,7 @@ for each dimension in the result).
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
 - `inspect = nothing`
-  is a function `(k::Int, tau::Float64, ldiff::Float64, f_k::Array) -> Any` optionally
+  is a function `(f_k::Array, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
@@ -88,7 +88,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1},
     
     # initial estimate is the zero vector
     f = zeros(Float64, m)
-    inspect(0, NaN, NaN, f)
+    inspect(f, 0, NaN, NaN)
     
     # the first iteration is a least squares fit
     H_lsq = _lsq_H(R, g)(f)
@@ -106,7 +106,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1},
             rethrow(err)
         end
     end
-    inspect(1, NaN, NaN, f)
+    inspect(f, 1, NaN, NaN)
     
     # subsequent iterations maximize the likelihood
     for k in 2:K
@@ -154,7 +154,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1},
         # monitor progress
         ldiff  = l_prev - l(f)
         info(loggingstream, "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)")
-        inspect(k, tau, ldiff, f)
+        inspect(f, k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon

@@ -52,7 +52,7 @@ contain some of the indices) are optionally provided as `bins`.
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
 - `inspect = nothing`
-  is a function `(k::Int, alpha::Float64, chi2s::Float64, f_k::Array) -> Any` optionally
+  is a function `(f_k::Array, k::Int, chi2s::Float64, alpha::Float64) -> Any` optionally
   called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
@@ -100,7 +100,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     f_train = Util.fit_pdf(y_train, laplace=true)                # training pdf with Laplace correction
     w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f # bin weights
     w_train = _dsea_weights(y_train, w_bin)                      # instance weights
-    inspect(0, NaN, NaN, f)
+    inspect(f, 0, NaN, NaN)
     
     # iterative deconvolution
     proba = Matrix{Float64}(0, 0) # empty matrix
@@ -115,7 +115,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
         info(loggingstream, "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)")
-        inspect(k, alphak, chi2s, f)
+        inspect(f, k, chi2s, alphak)
         
         # stop when convergence is assumed
         if chi2s < epsilon # also holds when alpha is zero

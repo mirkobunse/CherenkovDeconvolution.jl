@@ -63,7 +63,7 @@ density function `g`.
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
 - `inspect = nothing`
-  is a function `(k::Int, chi2s::Float64, f_k::Array) -> Any` optionally called in every
+  is a function `(f_k::Array, k::Int, chi2s::Float64) -> Any` optionally called in every
   iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
@@ -84,7 +84,7 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
     
     # initial estimate
     f = Util.normalizepdf(f_0)
-    inspect(0, NaN, f) # inspect prior
+    inspect(f, 0, NaN) # inspect prior
     
     # iterative Bayesian deconvolution
     for k in 1:K
@@ -97,7 +97,7 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
         info(loggingstream, "IBU iteration $k/$K (chi2s = $chi2s)")
-        inspect(k, chi2s, f)
+        inspect(f, k, chi2s)
         
         # stop when convergence is assumed
         if chi2s < epsilon
