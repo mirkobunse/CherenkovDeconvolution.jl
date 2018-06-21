@@ -31,21 +31,30 @@ function run{T<:Int}(x_data::AbstractArray{T, 1},
     if haskey(kwargs_dict, :f_0)
         kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
     end
+    if haskey(kwargs_dict, :inspect)
+        fun = kwargs_dict[:inspect] # inspection function
+        kwargs_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
+    end
     
-    # deconvolve
-    f = run(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs_dict...)
-    return _recode_result(f, recode_dict) # revert recoding of labels
+    # prepare arguments
+    R = Util.fit_R(y_train, x_train)
+    g = Util.fit_pdf(x_data, unique(x_train))
+    
+    # deconvolve and revert recoding of labels
+    f = run(R, g; kwargs_dict...)
+    return _recode_result(f, recode_dict)
 end
 
 """
-    run(R, g, n_df = size(R, 2); kwargs...)
+    run(R, g; kwargs...)
 
-Perform RUN with the observed pdf `g`, the detector response matrix `R`, and `n_df` degrees
-of freedom. The default `n_df` results in no regularization (there is one degree of freedom
-for each dimension in the result).
+Perform RUN with the observed pdf `g` and the detector response matrix `R`.
 
 **Keyword arguments**
 
+- `n_df = size(R, 2)`
+  is the effective number of degrees of freedom. The default `n_df` results in no
+  regularization (there is one degree of freedom for each dimension in the result).
 - `K = 100`
   is the maximum number of iterations.
 - `epsilon = 1e-6`
@@ -57,8 +66,8 @@ for each dimension in the result).
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 """
-function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1},
-                        n_df::Number = size(R, 2);
+function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
+                        n_df::Number = size(R, 2),
                         K::Int = 100,
                         epsilon::Float64 = 1e-6,
                         inspect::Function = (args...) -> nothing,
