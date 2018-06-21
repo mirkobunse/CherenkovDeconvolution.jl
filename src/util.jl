@@ -246,6 +246,17 @@ end
 
 
 """
+    inspect_expansion(inspect, factor)
+
+Create a function object for the inspection of deconvolution methods, which wraps the given
+`inspect` function so that expanded solutions are reduced for inspection. This helps you to
+monitor the progress of a deconvolution method operating on an expanded problem.
+"""
+inspect_expansion(inspect::Function, factor::Int) =
+    (f, args...) -> inspect(reduce(f, factor), args...)
+
+
+"""
     chi2s(a, b, normalize = true)
 
 Symmetric Chi Square distance between histograms `a` and `b`.
