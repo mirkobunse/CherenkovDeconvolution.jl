@@ -97,7 +97,6 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
     
     # initial estimate is the zero vector
     f = zeros(Float64, m)
-    inspect(f, 0, NaN, NaN)
     
     # the first iteration is a least squares fit
     H_lsq = _lsq_H(R, g)(f)
@@ -115,7 +114,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
             rethrow(err)
         end
     end
-    inspect(f, 1, NaN, NaN)
+    inspect(Util.normalizepdf(f), 1, NaN, NaN)
     
     # subsequent iterations maximize the likelihood
     for k in 2:K
@@ -163,7 +162,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         # monitor progress
         ldiff  = l_prev - l(f)
         info(loggingstream, "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)")
-        inspect(f, k, ldiff, tau)
+        inspect(Util.normalizepdf(f), k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -172,7 +171,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         end
         
     end
-    return f
+    return Util.normalizepdf(f)
     
 end
 
