@@ -20,9 +20,22 @@ one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and
 This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
 """
-run{T<:Int}(x_data::AbstractArray{T, 1}, x_train::AbstractArray{T, 1},
-            y_train::AbstractArray{T, 1}; kwargs...) =
-    run(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs...)
+function run{T<:Int}(x_data::AbstractArray{T, 1},
+                     x_train::AbstractArray{T, 1},
+                     y_train::AbstractArray{T, 1},
+                     bins_y::AbstractArray{T, 1} = 1:maximum(y_train);
+                     kwargs...)
+    # recode labels
+    y_train, recode_dict = _recode_labels(y_train, bins_y)
+    kwargs_dict = Dict(kwargs)
+    if haskey(kwargs_dict, :f_0)
+        kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
+    end
+    
+    # deconvolve
+    f = run(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs_dict...)
+    return _recode_result(f, recode_dict) # revert recoding of labels
+end
 
 """
     run(R, g, n_df = size(R, 2); kwargs...)
