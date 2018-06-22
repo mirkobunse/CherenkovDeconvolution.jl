@@ -38,7 +38,7 @@ function run{T<:Int}(x_data::AbstractArray{T, 1},
     
     # prepare arguments
     R = Util.fit_R(y_train, x_train)
-    g = Util.fit_pdf(x_data, unique(x_train))
+    g = Util.fit_pdf(x_data, unique(x_train), normalize = false)
     
     # deconvolve and revert recoding of labels
     f = run(R, g; kwargs_dict...)
@@ -48,7 +48,8 @@ end
 """
     run(R, g; kwargs...)
 
-Perform RUN with the observed pdf `g` and the detector response matrix `R`.
+Perform RUN with the observed frequency distribution `g` (absolute counts!) and the detector
+response matrix `R`.
 
 **Keyword arguments**
 
