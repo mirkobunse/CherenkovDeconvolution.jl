@@ -148,12 +148,14 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         # f_2 = 1/2 * inv(eye(S) + tau*S) * (U*D*U_C)' * (H_f * f - g_f)
         # f   = (U*D*U_C) * f_2
         # 
+        g_f += _C_g(tau, C)(f) # regularized gradient
+        H_f += _C_H(tau, C)(f) # regularized Hessian
         f += try
-            - inv(_maxl_H(R, g, tau, C)(f)) * _maxl_g(R, g, tau, C)(f)
+            - inv(H_f) * g_f
         catch err
             if isa(err, Base.LinAlg.SingularException) # pinv instead of inv only required if more y than x bins
                 warn("MaxL hessian is singular - using pseudo inverse in RUN")
-                - pinv(_maxl_H(R, g, tau, C)(f)) * _maxl_g(R, g, tau, C)(f)
+                - pinv(H_f) * g_f
             else
                 rethrow(err)
             end
@@ -204,22 +206,19 @@ end
 
 
 # objective function: negative log-likelihood
-_maxl_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                   C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
+_maxl_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
     f -> sum(begin
         fj = dot(R[j,:], f)
         fj - g[j]*real(log(complex(fj)))
-    end for j in 1:length(g)) + tau/2 * dot(f, C*f)
+    end for j in 1:length(g))
 
 # gradient of objective
-_maxl_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                   C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
+_maxl_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
     f -> [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
-           for i in 1:length(f) ] + tau * C * f
+           for i in 1:length(f) ]
 
 # hessian of objective
-_maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                   C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
+_maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
@@ -227,24 +226,21 @@ _maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
                 g[j]*R[j,i1]*R[j,i2] / dot(R[j,:], f)^2
             for j in 1:length(g))
         end
-        full(Symmetric(res + tau * C))
+        full(Symmetric(res))
     end
 
 
 # objective function: least squares
-_lsq_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                  C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
-    f -> sum([ (g[j] - dot(R[j,:], f))^2 / g[j] for j in 1:length(g) ])/2 + tau/2 * dot(f, C*f)
+_lsq_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+    f -> sum([ (g[j] - dot(R[j,:], f))^2 / g[j] for j in 1:length(g) ])/2
 
 # gradient of objective
-_lsq_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                  C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
+_lsq_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
     f -> [ sum([ -R[j,i] * (g[j] - dot(R[j,:], f)) / g[j] for j in 1:length(g) ])
-           for i in 1:length(f) ] + tau * C * f
+           for i in 1:length(f) ]
 
 # hessian of objective
-_lsq_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
-                  C::Matrix{Float64}=_tikhonov_binning(size(R, 2))) =
+_lsq_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
@@ -252,8 +248,17 @@ _lsq_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}, tau::Float64=0.0,
                 R[j,i1]*R[j,i2] / g[j]
             for j in 1:length(g))
         end
-        full(Symmetric(res + tau * C))
+        full(Symmetric(res))
     end
+
+# regularization term in objective function (both LSq and MaxL)
+_C_l(tau::Float64, C::Matrix{Float64}) = f -> tau/2 * dot(f, C*f)
+
+# regularization term in gradient of objective
+_C_g(tau::Float64, C::Matrix{Float64}) = f -> tau * C * f
+
+# regularization term in the Hessian of objective
+_C_H(tau::Float64, C::Matrix{Float64}) = f -> tau * C
 
 # Construct a Tikhonov matrix for binned discretization, as given in [cowan1998statistical, p. 169].
 # This is equivalent to the notation in [blobel2002unfolding_long]!
