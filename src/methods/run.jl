@@ -153,12 +153,29 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         f += try
             - inv(H_f) * g_f
         catch err
-            if isa(err, Base.LinAlg.SingularException) # pinv instead of inv only required if more y than x bins
-                warn("MaxL hessian is singular - using pseudo inverse in RUN")
-                - pinv(H_f) * g_f
+            
+            # try again with pseudo inverse
+            if isa(err, Base.LinAlg.SingularException) || isa(err, Base.LinAlg.LAPACKException)
+                try
+                    step = - pinv(H_f) * g_f # update step
+                    if isa(err, Base.LinAlg.SingularException)
+                        warn("MaxL Hessian is singular - using pseudo inverse in RUN")
+                    else
+                        warn("LAPACKException on inversion of MaxL Hessian - using pseudo inverse in RUN")
+                    end
+                    step # return update step after warning is emitted and only if computation is successful
+                catch err2
+                    if isa(err, Base.LinAlg.LAPACKException) # same exception occurs with pinv?
+                        warn("LAPACKException on pseudo inversion of MaxL Hessian - not performing an update in RUN")
+                        zeros(f) # return zero step to not update f
+                    else
+                        rethrow(err2)
+                    end
+                end
             else
                 rethrow(err)
             end
+            
         end
         
         # monitor progress
