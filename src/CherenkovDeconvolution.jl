@@ -71,25 +71,16 @@ _check_prior(f_0::Array{Float64,1}, recode_dict::Dict) =
 # recode labels to resemble a unit range (no missing labels in between)
 function _recode_labels{T<:Int}(y_train::AbstractArray{T,1}, bins::AbstractArray{T,1})
     
-    # set up mapping which reverses the recoding in _recode_result
-    sort!(bins)
-    dict = Dict(zip(bins, bins))
-    missing = find(Util.fit_pdf(y_train, bins) .== 0) # missing labels = zero bins
-    for i in missing
-        for j in i:(length(dict)-1)
-            dict[j] = j+1
-        end
-        delete!(dict, length(dict)) # delete last element
-    end
-    dict[-1] = maximum(bins) # store highest bin, as well
+    # recode the training set
+    y_bins = sort(unique(y_train))
+    y_dict = Dict(zip(y_bins, 1:length(y_bins)))
+    y_rec  = map(y -> y_dict[y], y_train)
     
-    # recode training set
-    y_train = copy(y_train)
-    for i in missing
-        y_train[y_train .> i] = y_train[y_train .> i] .- 1
-    end
+    # set up reverse recoding applied in _recode_result
+    recode_dict = Dict(zip(values(y_dict), keys(y_dict))) # map from values to keys
+    recode_dict[-1] = maximum(bins) # the highest actual bin (may not be in y_train)
     
-    return y_train, dict
+    return y_rec, recode_dict
     
 end
 

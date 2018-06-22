@@ -31,6 +31,12 @@ include("sklearn.jl")
     y_rec, recode_dict = CherenkovDeconvolution._recode_labels(y, 1:4)
     @test map(i -> recode_dict[i], y_rec) == y
     @test CherenkovDeconvolution._recode_result([.1, .2, .3], recode_dict) == [.1, .2, .3, 0]
+    
+    y = [1, 4, 4, 4, 4, 1, 4] # 2 and 3 is missing
+    y_rec, recode_dict = CherenkovDeconvolution._recode_labels(y, 1:4)
+    @test find(y .== 1) == find(y_rec .== 1)
+    @test find(y .== 4) == find(y_rec .== 2)
+    @test map(i -> recode_dict[i], y_rec) == y
 end
 
 # methods
