@@ -170,24 +170,29 @@ end
 _WARN_NORMALIZE = true
 
 """
-    polynomial_smoothing([o = 2])
+    polynomial_smoothing([o = 2, warn = true])
 
 Create a function object `f -> smoothing(f)` which smoothes its argument with a polynomial
-of order `o`.
+of order `o`. `warn` specifies if a warning is emitted when negative values returned by the
+smoothing are replaced by the average of neighboring values - a post-processing step
+proposed in [dagostini2010improved].
 """
-polynomial_smoothing(o::Int=2) =
+polynomial_smoothing(o::Int=2, warn::Bool=true) =
     (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
         if o < length(f)
             # return the values of a fitted polynomial
-            _repair_smoothing( polyval(polyfit(1:length(f), f, o), 1:length(f)) )
+            _repair_smoothing( polyval(polyfit(1:length(f), f, o), 1:length(f)), warn )
         else
             throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
         end
     end
 
-function _repair_smoothing(f::Array{Float64,1}) # may be used in other smoothing functions
+# post-process result of polynomial_smoothing (and other smoothing functions)
+function _repair_smoothing(f::Array{Float64,1}, w::Bool)
     if any(f .< 0) # average values of neighbors for all values < 0
-        warn("Averaging values of neighbours for negative values returned by smoothing")
+        if w # warn about negative values?
+            warn("Averaging values of neighbours for negative values returned by smoothing")
+        end
         for i in find(f .< 0)
             f[i] = if i == 1
                        f[i+1] / 2
