@@ -89,7 +89,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     # 
     
     # recode labels and check arguments
-    y_train, recode_dict = _recode_labels(y_train, bins)
+    recode_dict, y_train = _recode_indices(bins, y_train)
     if size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
     end

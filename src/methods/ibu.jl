@@ -29,18 +29,31 @@ the three arrays.
 function ibu{T<:Int}(x_data::AbstractArray{T, 1},
                      x_train::AbstractArray{T, 1},
                      y_train::AbstractArray{T, 1},
-                     bins_y::AbstractArray{T, 1} = 1:maximum(y_train);
+                     bins::AbstractArray{T, 1} = 1:maximum(y_train);
                      kwargs...)
-    # recode labels
-    y_train, recode_dict = _recode_labels(y_train, bins_y)
+                     
+    bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
+    
+    # recode indices
+    recode_dict, y_train = _recode_indices(bins, y_train)
+    _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
     kwargs_dict = Dict(kwargs)
     if haskey(kwargs_dict, :f_0)
         kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
     end
+    if haskey(kwargs_dict, :inspect)
+        fun = kwargs_dict[:inspect] # inspection function
+        kwargs_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
+    end
+    
+    # prepare arguments
+    R = Util.fit_R(y_train, x_train, bins_y = bins, bins_x = bins_x)
+    g = Util.fit_pdf(x_data, bins_x)
     
     # deconvolve
-    f = ibu(Util.fit_R(y_train, x_train), Util.fit_pdf(x_data, unique(x_train)); kwargs_dict...)
+    f = ibu(R, g; kwargs_dict...)
     return _recode_result(f, recode_dict) # revert recoding of labels
+    
 end
 
 """

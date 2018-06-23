@@ -68,24 +68,24 @@ end
 _check_prior(f_0::Array{Float64,1}, recode_dict::Dict) =
     _check_prior(length(f_0) > 0 ? f_0[sort(collect(values(recode_dict)))] : f_0, length(recode_dict)-1 )
 
-# recode labels to resemble a unit range (no missing labels in between)
-function _recode_labels{T<:Int}(y_train::AbstractArray{T,1}, bins::AbstractArray{T,1})
+# recode indices to resemble a unit range (no missing labels in between)
+function _recode_indices{T<:Int}(bins::AbstractArray{T,1}, inds::AbstractArray{T,1}...)
     
     # recode the training set
-    y_bins = sort(unique(y_train))
-    y_dict = Dict(zip(y_bins, 1:length(y_bins)))
-    y_rec  = map(y -> y_dict[y], y_train)
+    inds_bins = sort(unique(vcat(inds...)))
+    inds_dict = Dict(zip(inds_bins, 1:length(inds_bins)))
+    inds_rec  = map(ind -> map(i -> inds_dict[i], ind), inds)
     
     # set up reverse recoding applied in _recode_result
-    recode_dict = Dict(zip(values(y_dict), keys(y_dict))) # map from values to keys
+    recode_dict = Dict(zip(values(inds_dict), keys(inds_dict))) # map from values to keys
     recode_dict[-1] = maximum(bins) # the highest actual bin (may not be in y_train)
     
-    return y_rec, recode_dict
+    return recode_dict, inds_rec...
     
 end
 
-# recode a deconvolution result by reverting the initial recoding of the training set
-function _recode_result(f::Array{Float64,1}, recode_dict)
+# recode a deconvolution result by reverting the initial recoding of the data
+function _recode_result{T<:Int}(f::Array{Float64,1}, recode_dict::Dict{T,T})
     r = zeros(Float64, maximum(values(recode_dict)))
     for (k, v) in recode_dict
         if k != -1
