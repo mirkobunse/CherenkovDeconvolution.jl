@@ -37,3 +37,34 @@ end
     end
 end
 
+@testset "_alpha_range" begin
+    
+    PRECISION = 1e-4
+    
+    # new implementation of _alpha_range should equal this correct brute-force version
+    function _alpha_range_old(pk::Array{Float64,1}, f::Array{Float64,1})
+        alphas     = 0:PRECISION:1# all alphas
+        admissible = map(a -> all(f + a * pk .>= 0), alphas)
+        alpha_min  = alphas[findfirst(admissible)]
+        alpha_max  = alphas[ findlast(admissible)]
+        return alpha_min, alpha_max
+    end
+    
+    for _ in 1:10
+        num_bins = rand(1:100)
+        f        = rand(num_bins)
+        a_max    = rand()      # maximum alpha value
+        pk       = -f ./ a_max # f + a_max * pk == 0 (approximately)
+        
+        # find range of admissible alphas
+        range_old = _alpha_range_old(pk, f)
+        range_new = CherenkovDeconvolution._alpha_range(pk, f)
+        
+        # old method is only approximate, so the new result has to be rounded for comparison
+        range_new_rounded = floor.(range_new, abs(convert(Int, log10(PRECISION))))
+        @test range_new_rounded[1] == range_old[1]
+        @test range_new_rounded[2] == range_old[2]
+    end
+    
+end
+

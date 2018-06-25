@@ -22,11 +22,11 @@
 module CherenkovDeconvolution
 
 
-using DataFrames
+using DataFrames, Optim.optimize # Optim required for adaptive step sizes
 
 export Util, Sklearn
 export dsea, ibu, run
-export alphadecay_exp, alphadecay_mul
+export alphadecay_exp, alphadecay_mul, alpha_adaptive_run
 
 
 # utility modules

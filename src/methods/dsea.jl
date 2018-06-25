@@ -161,7 +161,8 @@ end
     alphadecay_exp(eta::Float64, a_1::Float64=1.0)
 
 Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
-Will reduce the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent iteration:
+This object reduces the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent
+iteration:
 
     alpha = a_1 * eta^(k-1).
 """
@@ -172,7 +173,8 @@ alphadecay_exp(eta::Float64, a_1::Float64=1.0) =
     alphadecay_mul(eta::Float64, a_1::Float64=1.0)
 
 Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
-Will reduce the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent iteration:
+This object reduces the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent
+iteration:
 
     alpha = a_1 * k ^ (eta-1)
     
@@ -180,4 +182,55 @@ For example, eta=.5 yields alpha = 1/sqrt(k).
 """
 alphadecay_mul(eta::Float64, a_1::Float64=1.0) =
     (k::Int, pk::AbstractArray{Float64,1}, f::AbstractArray{Float64,1}) -> a_1 * k^(eta-1)
+
+"""
+    alpha_adaptive_run(x_data, x_train, y_train[, bins, tau = 0])
+
+Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
+This object adapts the DSEA step size to the current estimate by maximizing the likelihood
+of the next estimate in the search direction of the current iteration.
+"""
+function alpha_adaptive_run{T<:Int}( x_data  :: Array{T,1},
+                                     x_train :: Array{T,1},
+                                     y_train :: Array{T,1},
+                                     bins    :: AbstractArray{T,1} = 1:maximum(y_train),
+                                     tau     :: Number = 0.0 )
+    
+    bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
+    
+    # recode indices
+    recode_dict, y_train = _recode_indices(bins, y_train)
+    _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
+    
+    # prepare discrete deconvolution problem
+    R = Util.fit_R(y_train, x_train, bins_y = bins, bins_x = bins_x)
+    g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
+    
+    # set up negative log likelihood function to be minimized
+    C = _tikhonov_binning(size(R, 2))       # regularization matrix (from run.jl)
+    maxl_l = _maxl_l(R, g)                  # function of f (from run.jl)
+    maxl_C = _C_l(tau, C)                   # regularization term (from run.jl)
+    negloglike = f -> maxl_l(f) + maxl_C(f) # regularized objective function
+    
+    # return step size function
+    return (k::Int, pk::Array{Float64,1}, f_prev::Array{Float64,1}) -> begin
+        a_min, a_max = _alpha_range(pk, f_prev)
+        optimize(a -> negloglike(f_prev + a * pk), a_min, a_max).minimizer # from Optim.jl
+    end
+    
+end
+
+# range of admissible alpha values
+function _alpha_range(pk::Array{Float64,1}, f::Array{Float64,1})
+    # find alpha values for which the next estimate would be zero in one dimension
+    f  =  f[pk .!= 0] # limit to non-zero dimensions (alpha is arbitrary for zeros in pk)
+    pk = pk[pk .!= 0]
+    a_zero = - (f ./ pk)
+    
+    # for positive pk[i] (negative a_zero[i]), alpha has to be larger than a_zero[i]
+    # for negative pk[i] (positive a_zero[i]), alpha has to be smaller than a_zero[i]
+    a_min = maximum(vcat(a_zero[a_zero .< 0], 0)) # vcat selects a_min = 0 if no pk[i]>0 is present
+    a_max = minimum(a_zero[a_zero .>= 0])
+    return a_min, a_max
+end
 
