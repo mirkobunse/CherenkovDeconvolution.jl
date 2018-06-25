@@ -19,6 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
+module Util
+
+
 using StatsBase, Discretizers, Polynomials, DataFrames
 
 export fit_pdf, fit_R, edges, normalizetransfer
@@ -302,4 +305,7 @@ df2Xy(df::AbstractDataFrame, y::Symbol, features::Array{Symbol,1}=setdiff(names(
 Convert the DataFrame `df` to a feature matrix `X`.
 """
 df2X(df::AbstractDataFrame, features::AbstractArray{Symbol,1}=names(df)) = convert(Matrix, df[:, features])
+
+
+end
 

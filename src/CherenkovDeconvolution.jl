@@ -29,19 +29,9 @@ export dsea, ibu, run
 export alphadecay_exp, alphadecay_mul
 
 
-# utility module
-module Util
-    include("util.jl")
-end
-
-# optional sklearn utilities
-module Sklearn
-    using Requires
-    @require ScikitLearn begin
-        info("Utilities of ScikitLearn.jl are available in CherenkovDeconvolution.Sklearn")
-        include("sklearn.jl")
-    end
-end
+# utility modules
+include("util.jl")
+include("sklearn.jl")
 
 
 # deconvolution methods
@@ -96,4 +86,5 @@ function _recode_result{T<:Int}(f::Array{Float64,1}, recode_dict::Dict{T,T})
 end
 
 
-end # module
+end
+
