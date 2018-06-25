@@ -26,7 +26,7 @@ using DataFrames, Optim.optimize # Optim required for adaptive step sizes
 
 export Util, Sklearn
 export dsea, ibu, run
-export alphadecay_exp, alphadecay_mul, alpha_adaptive_run
+export alpha_decay_exp, alpha_decay_mul, alpha_adaptive_run
 
 
 # utility modules
