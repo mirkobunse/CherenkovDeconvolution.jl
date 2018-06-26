@@ -30,12 +30,8 @@ from measurements of correlated quantities.
 ## Getting Started
 
 Install the package by cloning this repository with the Julia package manager.
-Also consider installing
-[ScikitLearn.jl](http://scikitlearnjl.readthedocs.io/en/latest/quickstart/),
-with which you can easily set up the classifiers used in DSEA.
 
       Pkg.clone("git://github.com/mirkobunse/CherenkovDeconvolution.jl.git")
-      Pkg.add("ScikitLearn")
 
 The [example directory](https://github.com/mirkobunse/CherenkovDeconvolution.jl/tree/master/example)
 introduces the usage of CherenkovDeconvolution.jl.
@@ -44,8 +40,8 @@ introduces the usage of CherenkovDeconvolution.jl.
 
 ## Current Status
 
-CherenkovDeconvolution.jl currently implements the Dortmund Spectrum Estimation Algorithm
-(DSEA). The other major algorithms will soon be added.
+CherenkovDeconvolution.jl implements an enhanced version of the Dortmund Spectrum Estimation Algorithm (DSEA+),
+the Regularized Unfolding (RUN) method, and the Iterative Bayesian Unfolding (IBU).
 
-We also provide a full port of this package to Python: [CherenkovDeconvolution.py](https://github.com/mirkobunse/CherenkovDeconvolution.py)
+We also ported this package to Python: [CherenkovDeconvolution.py](https://github.com/mirkobunse/CherenkovDeconvolution.py)
 
