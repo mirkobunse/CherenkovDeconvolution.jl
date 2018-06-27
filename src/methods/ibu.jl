@@ -101,10 +101,14 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
     
     # iterative Bayesian deconvolution
     for k in 1:K
-        f_prev = f
+        
+        # == smoothing in between iterations ==
+        f_prev_smooth = k > 1 ? smoothing(f) : f # do not smooth the initial estimate
+        f_prev = f # unsmoothed estimate required for convergence check
+        # = = = = = = = = = = = = = = = = = = =
         
         # === apply Bayes' rule ===
-        f = Util.normalizepdf(_ibu_reverse_transfer(R, f_prev) * g)
+        f = Util.normalizepdf(_ibu_reverse_transfer(R, f_prev_smooth) * g)
         # = = = = = = = = = = = = =
         
         # monitor progress
@@ -117,12 +121,6 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
             info(loggingstream, "IBU convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
             break
         end
-        
-        # == smoothing in between iterations ==
-        if k < K
-            f = smoothing(f)
-        end
-        # = = = = = = = = = = = = = = = = = = =
         
     end
     
