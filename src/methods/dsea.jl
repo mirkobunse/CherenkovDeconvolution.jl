@@ -35,7 +35,7 @@ contain some of the indices) are optionally provided as `bins`.
 
 - `f_0 = ones(m) ./ m`
   defines the prior, which is uniform by default
-- `fixweighting = false`
+- `fixweighting = true`
   sets, whether or not the weight update fix is applied. This fix is proposed in my Master's
   thesis and in the corresponding paper.
 - `alpha = 1.0`
