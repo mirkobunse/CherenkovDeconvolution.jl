@@ -8,7 +8,7 @@ Deconvolution methods for Cherenkov astronomy and other use cases in experimenta
 
 ## Deconvolution in Cherenkov Astronomy
 
-One frequent objective in experimental physics is to obtain the distribution of a physical quantity.
+Obtaining the distribution of a physical quantity is a frequent objective in experimental physics.
 In cases where the distribution of the relevant quantity cannot be accessed experimentally,
 it has to be reconstructed from distributions of correlated quantities that are measured, instead.
 This reconstruction is called *deconvolution*.
