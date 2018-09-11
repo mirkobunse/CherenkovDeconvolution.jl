@@ -1,0 +1,22 @@
+name = "CherenkovDeconvolution"
+uuid = "7995dc16-b5cc-11e8-32a0-21341f07e0b5"
+authors = ["Mirko Bunse <mirko.bunse@cs.tu-dortmund.de>"]
+version = "0.1.0"
+
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Discretizers = "6e83dbb3-75ca-525b-8ae2-3751f0dd50b4"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
+Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
+ScikitLearn = "3646fa90-6ef7-5e7e-9f22-8aca16db6324"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+
+[extras]
+Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
+MLDataUtils = "cc2ba9b6-d476-5e6d-8eaf-a92d5412d41d"
+NBInclude = "0db19996-df87-5ea3-a455-e3a50d440464"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
+
+[targets]
+test = ["Distances", "MLDataUtils", "NBInclude", "Test", "YAML"]
