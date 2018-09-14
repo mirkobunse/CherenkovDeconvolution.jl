@@ -24,7 +24,6 @@ module Sklearn
 
 using DataFrames, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall
-using ScikitLearnBase: weighted_sum
 import CherenkovDeconvolution.Util
 
 @sk_import tree        : DecisionTreeClassifier
