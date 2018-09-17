@@ -60,29 +60,29 @@ contain some of the indices) are optionally provided as `bins`.
   sets, whether or not the contributions of individual examples in `X_data` are returned as
   a tuple together with the deconvolution result.
 """
-dsea{TN<:Number, TI<:Int}(X_data::AbstractMatrix{TN},
-                          X_train::AbstractMatrix{TN},
-                          y_train::AbstractArray{TI, 1},
-                          train_and_predict_proba::Function,
-                          bins::AbstractArray{TI, 1} = 1:maximum(y_train);
-                          kwargs...) =
-    dsea(convert(Array, X_data), convert(Array, X_train), convert(Array, y_train),
-         train_and_predict_proba, bins; kwargs...)
+dsea(X_data::AbstractMatrix{TN},
+     X_train::AbstractMatrix{TN},
+     y_train::AbstractArray{TI, 1},
+     train_and_predict_proba::Function,
+     bins::AbstractArray{TI, 1} = 1:maximum(y_train);
+     kwargs...) where {TN<:Number, TI<:Int} =
+  dsea(convert(Array, X_data), convert(Array, X_train), convert(Array, y_train),
+       train_and_predict_proba, bins; kwargs...)
 
-function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
-                                   X_train::Matrix{TN},
-                                   y_train::Array{TI, 1},
-                                   train_and_predict_proba::Function,
-                                   bins::AbstractArray{TI, 1} = 1:maximum(y_train);
-                                   f_0::Array{Float64, 1} = Float64[],
-                                   fixweighting::Bool = true,
-                                   alpha::Union{Float64, Function} = 1.0,
-                                   smoothing::Function = Base.identity,
-                                   K::Int64 = 1,
-                                   epsilon::Float64 = 0.0,
-                                   inspect::Function = (args...) -> nothing,
-                                   loggingstream::IO = DevNull,
-                                   return_contributions::Bool = false)
+function dsea(X_data::Matrix{TN},
+              X_train::Matrix{TN},
+              y_train::Array{TI, 1},
+              train_and_predict_proba::Function,
+              bins::AbstractArray{TI, 1} = 1:maximum(y_train);
+              f_0::Array{Float64, 1} = Float64[],
+              fixweighting::Bool = true,
+              alpha::Union{Float64, Function} = 1.0,
+              smoothing::Function = Base.identity,
+              K::Int64 = 1,
+              epsilon::Float64 = 0.0,
+              inspect::Function = (args...) -> nothing,
+              loggingstream::IO = DevNull,
+              return_contributions::Bool = false) where {TN<:Number, TI<:Int}
     # 
     # Note: X_data, X_train, and y_train are converted to actual Array objects because
     # ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used.
@@ -141,7 +141,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
 end
 
 # the weights of training instances are based on the bin weights in w_bin
-_dsea_weights{T<:Int}(y_train::Array{T, 1}, w_bin::Array{Float64, 1}) =
+_dsea_weights(y_train::Array{T, 1}, w_bin::Array{Float64, 1}) where T<:Int =
     max.(w_bin[y_train], 1/length(y_train)) # Laplace correction
 
 # the reconstructed estimate is the sum of confidences in each bin
@@ -190,11 +190,11 @@ Return a `Function` object with the signature required by the `alpha` parameter 
 This object adapts the DSEA step size to the current estimate by maximizing the likelihood
 of the next estimate in the search direction of the current iteration.
 """
-function alpha_adaptive_run{T<:Int}( x_data  :: Array{T,1},
-                                     x_train :: Array{T,1},
-                                     y_train :: Array{T,1},
-                                     bins    :: AbstractArray{T,1} = 1:maximum(y_train),
-                                     tau     :: Number = 0.0 )
+function alpha_adaptive_run( x_data  :: Array{T,1},
+                             x_train :: Array{T,1},
+                             y_train :: Array{T,1},
+                             bins    :: AbstractArray{T,1} = 1:maximum(y_train),
+                             tau     :: Number = 0.0 ) where T<:Int
     
     bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
     

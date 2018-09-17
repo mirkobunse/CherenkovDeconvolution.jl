@@ -22,7 +22,8 @@
 module CherenkovDeconvolution
 
 
-using DataFrames, Optim.optimize # Optim required for adaptive step sizes
+using DataFrames
+using Optim: optimize # Optim required for adaptive step sizes
 
 export Util, Sklearn
 export dsea, ibu, run
@@ -59,7 +60,7 @@ _check_prior(f_0::Array{Float64,1}, recode_dict::Dict) =
     _check_prior(length(f_0) > 0 ? f_0[sort(setdiff(collect(values(recode_dict)), [-1]))] : f_0, length(recode_dict)-1 )
 
 # recode indices to resemble a unit range (no missing labels in between)
-function _recode_indices{T<:Int}(bins::AbstractArray{T,1}, inds::AbstractArray{T,1}...)
+function _recode_indices(bins::AbstractArray{T,1}, inds::AbstractArray{T,1}...) where T<:Int
     
     # recode the training set
     inds_bins = sort(unique(vcat(inds...)))
@@ -75,7 +76,7 @@ function _recode_indices{T<:Int}(bins::AbstractArray{T,1}, inds::AbstractArray{T
 end
 
 # recode a deconvolution result by reverting the initial recoding of the data
-function _recode_result{T<:Int}(f::Array{Float64,1}, recode_dict::Dict{T,T})
+function _recode_result(f::Array{Float64,1}, recode_dict::Dict{T,T}) where T<:Int
     r = zeros(Float64, maximum(values(recode_dict)))
     for (k, v) in recode_dict
         if k != -1

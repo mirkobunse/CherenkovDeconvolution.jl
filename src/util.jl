@@ -34,8 +34,8 @@ export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
 
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
 """
-function fit_pdf{T<:Int}(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
-                         normalize::Bool=true, laplace::Bool=false)
+function fit_pdf(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
+                 normalize::Bool=true, laplace::Bool=false) where T<:Int
     h = fit(Histogram, x, edges(bins), closed=:left).weights
     if laplace
         h = max.(h, 1)
@@ -53,10 +53,10 @@ integer array `y` to the integer array `x`.
 `R` is normalized by default so that `fit_pdf(x) == R * fit_pdf(y)`.
 If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
 """
-function fit_R{T<:Int}(y::AbstractArray{T,1}, x::AbstractArray{T,1};
-                       bins_y::AbstractArray{T,1}=unique(y),
-                       bins_x::AbstractArray{T,1}=unique(x),
-                       normalize::Bool = true)
+function fit_R(y::AbstractArray{T,1}, x::AbstractArray{T,1};
+               bins_y::AbstractArray{T,1}=unique(y),
+               bins_x::AbstractArray{T,1}=unique(x),
+               normalize::Bool = true) where T<:Int
     # check arguments (not done by fit(::Histogram, ..))
     if length(y) != length(x)
         throw(ArgumentError("x and y have different dimensions"))
@@ -73,7 +73,7 @@ end
 
 Obtain the edges of an histogram of the integer array `x`.
 """
-function edges{T<:Int}(x::AbstractArray{T,1})
+function edges(x::AbstractArray{T,1}) where T<:Int
     xmin, xmax = extrema(x)
     return xmin:(xmax+1)
 end
@@ -84,7 +84,7 @@ end
 
 Normalize each column in `R` to make a probability density function.
 """
-function normalizetransfer{T<:Number}(R::AbstractMatrix{T})
+function normalizetransfer(R::AbstractMatrix{T}) where T<:Number
     R_norm = zeros(Float64, size(R))
     for i in 1:size(R, 2)
         R_norm[:,i] = normalizepdf(R[:,i])
@@ -166,7 +166,7 @@ function normalizepdf!(a::AbstractArray...)
     if single
         return arrs[1]
     else
-        return (arrs...) # convert to tuple
+        return (arrs...,) # convert to tuple
     end
     
 end
@@ -233,7 +233,8 @@ You can set `keepdim = false` to reduce solutions of a previously expanded decon
 problem. `keepdim = true` is useful if you reduce a solution of a non-expanded problem, and
 want to compare the reduced result to non-reduced results.
 """
-function reduce{TN<:Number}(f::Array{TN,1}, factor::Int, keepdim::Bool=false; normalize::Bool=true)
+function reduce(f::Array{TN,1}, factor::Int, keepdim::Bool=false;
+                normalize::Bool=true) where TN<:Number
     
     # combine bins of f
     imax   = length(f) - factor + 1 # maximum edge index
@@ -280,7 +281,7 @@ inspect_reduction(inspect::Function, factor::Int) =
 
 Symmetric Chi Square distance between histograms `a` and `b`.
 """
-function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normalize = true)
+function chi2s(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normalize = true) where T<:Number
     if normalize
         a, b = normalizepdf(a, b)
     end

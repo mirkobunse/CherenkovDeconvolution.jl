@@ -26,11 +26,11 @@ provided as `bins_y`.
 This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
 """
-function ibu{T<:Int}(x_data::AbstractArray{T, 1},
-                     x_train::AbstractArray{T, 1},
-                     y_train::AbstractArray{T, 1},
-                     bins::AbstractArray{T, 1} = 1:maximum(y_train);
-                     kwargs...)
+function ibu(x_data::AbstractArray{T, 1},
+             x_train::AbstractArray{T, 1},
+             y_train::AbstractArray{T, 1},
+             bins::AbstractArray{T, 1} = 1:maximum(y_train);
+             kwargs...) where T<:Int
                      
     bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
     
@@ -81,13 +81,13 @@ density function `g`.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 """
-function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
-                        f_0::Array{Float64, 1} = Float64[],
-                        smoothing::Function = Base.identity,
-                        K::Int = 3,
-                        epsilon::Float64 = 0.0,
-                        inspect::Function = (args...) -> nothing,
-                        loggingstream::IO = DevNull)
+function ibu(R::Matrix{Float64}, g::Array{T, 1};
+             f_0::Array{Float64, 1} = Float64[],
+             smoothing::Function = Base.identity,
+             K::Int = 3,
+             epsilon::Float64 = 0.0,
+             inspect::Function = (args...) -> nothing,
+             loggingstream::IO = DevNull) where T<:Number
     
     # check arguments
     if size(R, 1) != length(g)

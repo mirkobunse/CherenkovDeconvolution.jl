@@ -20,11 +20,11 @@ one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and
 This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
 """
-function run{T<:Int}(x_data::AbstractArray{T, 1},
-                     x_train::AbstractArray{T, 1},
-                     y_train::AbstractArray{T, 1},
-                     bins::AbstractArray{T, 1} = 1:maximum(y_train);
-                     kwargs...)
+function run(x_data::AbstractArray{T, 1},
+             x_train::AbstractArray{T, 1},
+             y_train::AbstractArray{T, 1},
+             bins::AbstractArray{T, 1} = 1:maximum(y_train);
+             kwargs...) where T<:Int
                      
     bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
     
@@ -72,12 +72,12 @@ response matrix `R`.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 """
-function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
-                        n_df::Number = size(R, 2),
-                        K::Int = 100,
-                        epsilon::Float64 = 1e-6,
-                        inspect::Function = (args...) -> nothing,
-                        loggingstream::IO = DevNull)
+function run(R::Matrix{Float64}, g::Array{T,1};
+             n_df::Number = size(R, 2),
+             K::Int = 100,
+             epsilon::Float64 = 1e-6,
+             inspect::Function = (args...) -> nothing,
+             loggingstream::IO = DevNull) where T<:Number
     
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
@@ -231,19 +231,19 @@ end
 
 
 # objective function: negative log-likelihood
-_maxl_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_maxl_l(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
     f -> sum(begin
         fj = dot(R[j,:], f)
         fj - g[j]*real(log(complex(fj)))
     end for j in 1:length(g))
 
 # gradient of objective
-_maxl_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_maxl_g(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
     f -> [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
            for i in 1:length(f) ]
 
 # hessian of objective
-_maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_maxl_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
@@ -256,16 +256,16 @@ _maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
 
 
 # objective function: least squares
-_lsq_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_lsq_l(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
     f -> sum([ (g[j] - dot(R[j,:], f))^2 / g[j] for j in 1:length(g) ])/2
 
 # gradient of objective
-_lsq_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_lsq_g(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
     f -> [ sum([ -R[j,i] * (g[j] - dot(R[j,:], f)) / g[j] for j in 1:length(g) ])
            for i in 1:length(f) ]
 
 # hessian of objective
-_lsq_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_lsq_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
