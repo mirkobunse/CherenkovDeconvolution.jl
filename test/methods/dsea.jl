@@ -15,7 +15,7 @@
         # consider Laplace correction (correct weights pass the test without assertion)
         unequal = w_train .!= w_bin[y_train] # indices which have to be checked
         if any(unequal)
-            info("$(sum(unequal)) weights are not equal - checking Laplace correction")
+            @info "$(sum(unequal)) weights are not equal - checking Laplace correction"
             @test all(w_train[unequal] .== 1/length(y_train))
             @test all(w_bin[y_train[unequal]] .<= 1/length(y_train))
         end # else, all weights are equal -> pass test
@@ -61,7 +61,7 @@ end
         range_new = CherenkovDeconvolution._alpha_range(pk, f)
         
         # old method is only approximate, so the new result has to be rounded for comparison
-        range_new_rounded = floor.(range_new, abs(convert(Int, log10(PRECISION))))
+        range_new_rounded = floor.(range_new, digits=abs(convert(Int, log10(PRECISION))))
         @test range_new_rounded[1] == range_old[1]
         @test range_new_rounded[2] == range_old[2]
     end

@@ -54,8 +54,6 @@ contain some of the indices) are optionally provided as `bins`.
 - `inspect = nothing`
   is a function `(f_k::Array, k::Int, chi2s::Float64, alpha::Float64) -> Any` optionally
   called in every iteration.
-- `loggingstream = DevNull`
-  is an optional `IO` stream to write log messages to.
 - `return_contributions = false`
   sets, whether or not the contributions of individual examples in `X_data` are returned as
   a tuple together with the deconvolution result.
@@ -95,6 +93,10 @@ function dsea(X_data::Matrix{TN},
     end
     f_0 = _check_prior(f_0, recode_dict)
     
+    if loggingstream != DevNull
+        @warn "The argument 'loggingstream' is deprecated in v0.1.0. Use the 'with_logger' functionality of julia-0.7 and above." _group=:depwarn
+    end
+    
     # initial estimate
     f       = f_0
     f_train = Util.fit_pdf(y_train, laplace=true)                # training pdf with Laplace correction
@@ -114,12 +116,12 @@ function dsea(X_data::Matrix{TN},
         
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
-        info(loggingstream, "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)")
+        @info "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)"
         inspect(f, k, chi2s, alphak)
         
         # stop when convergence is assumed
         if chi2s < epsilon # also holds when alpha is zero
-            info(loggingstream, "DSEA convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
+            @info "DSEA convergence assumed from chi2s = $chi2s < epsilon = $epsilon"
             break
         end
         

@@ -81,7 +81,7 @@ function run(R::Matrix{Float64}, g::Array{T,1};
     
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
-        warn("Limiting RUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins")
+        @warn "Limiting RUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
         g = g[nonzero]
         R = R[nonzero, :]
     end
@@ -92,7 +92,7 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
     end
     if m > size(R, 1)
-        warn("RUN is performed on more target than observable bins - results may be unsatisfactory")
+        @warn "RUN is performed on more target than observable bins - results may be unsatisfactory"
     end
     
     # set up the loss function
@@ -107,14 +107,14 @@ function run(R::Matrix{Float64}, g::Array{T,1};
     # the first iteration is a least squares fit
     H_lsq = _lsq_H(R, g)(f)
     if !all(isfinite.(H_lsq))
-        warn("LSq hessian contains Infs or NaNs - replacing these by zero")
+        @warn "LSq hessian contains Infs or NaNs - replacing these by zero"
         H_lsq[.!(isfinite.(H_lsq))] = 0.0
     end
     f += try
         - inv(H_lsq) * _lsq_g(R, g)(f)
     catch err
         if isa(err, Base.LinAlg.SingularException) # pinv instead of inv only required if more y than x bins
-            warn("LSq hessian is singular - using pseudo inverse in RUN")
+            @warn "LSq hessian is singular - using pseudo inverse in RUN"
             - pinv(H_lsq) * _lsq_g(R, g)(f)
         else
             rethrow(err)
@@ -130,7 +130,7 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         g_f = g_l(f)
         H_f = H_l(f)
         if !all(isfinite.(H_f))
-            warn("MaxL hessian contains Infs or NaNs - replacing these by zero")
+            @warn "MaxL hessian contains Infs or NaNs - replacing these by zero"
             H_f[.!(isfinite.(H_f))] = 0.0
         end
         
@@ -165,14 +165,14 @@ function run(R::Matrix{Float64}, g::Array{T,1};
                 try
                     step = - pinv(H_f) * g_f # update step
                     if isa(err, Base.LinAlg.SingularException)
-                        warn("MaxL Hessian is singular - using pseudo inverse in RUN")
+                        @warn "MaxL Hessian is singular - using pseudo inverse in RUN"
                     else
-                        warn("LAPACKException on inversion of MaxL Hessian - using pseudo inverse in RUN")
+                        @warn "LAPACKException on inversion of MaxL Hessian - using pseudo inverse in RUN"
                     end
                     step # return update step after warning is emitted and only if computation is successful
                 catch err2
                     if isa(err, Base.LinAlg.LAPACKException) # same exception occurs with pinv?
-                        warn("LAPACKException on pseudo inversion of MaxL Hessian - not performing an update in RUN")
+                        @warn "LAPACKException on pseudo inversion of MaxL Hessian - not performing an update in RUN"
                         zeros(f) # return zero step to not update f
                     else
                         rethrow(err2)

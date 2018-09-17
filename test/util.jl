@@ -9,7 +9,7 @@ Rdict = Dict(1 => 1,
              2 => 1,
              3 => 2,
              4 => 2)
-x = get.(Rdict, y, -1)
+x = get.(Ref(Rdict), y, -1)
 R = zeros(Float64, (2, 3))
 for i in 1:length(y)
     R[x[i], y[i]] += 1
@@ -49,7 +49,7 @@ end
         @test length(rand_hist) == num_bins
         
         # laplace correction
-        rand_arr[rand_arr .== 1] = 2 # replace full class, which consequently gets probability zero
+        rand_arr[rand_arr .== 1] .= 2 # replace full class, which consequently gets probability zero
         @test Util.fit_pdf(rand_arr, 1:num_bins, normalize = false)[1] == 0
         @test Util.fit_pdf(rand_arr, 1:num_bins, laplace = true, normalize = false)[1] == 1
     end
