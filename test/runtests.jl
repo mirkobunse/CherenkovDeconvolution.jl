@@ -8,7 +8,7 @@ Random.seed!(42) # make tests reproducible
 
 # utilities
 include("util.jl")
-# include("sklearn.jl") # TODO re-activate these tests!
+include("sklearn.jl")
 
 # 
 # additional helpers
@@ -49,5 +49,5 @@ include("methods/run.jl")
 include("methods/ibu.jl")
 
 # check that no error occurs in example notebooks
-# nbinclude("../example/getting-started.ipynb") # TODO re-activate these tests!
+@nbinclude "../example/getting-started.ipynb"
 

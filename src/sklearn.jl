@@ -113,9 +113,9 @@ end
 Unsupervised clustering using all columns in `train`, finding `k` clusters.
 It can be used to `discretize()` multidimensional data.
 """
-function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::UInt32=rand(UInt32)) where T<:Number
+function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::Integer=rand(UInt32)) where T<:Number
     @sk_import cluster : KMeans
-    clustering = KMeans(n_clusters=k, n_init=1, random_state=seed)
+    clustering = KMeans(n_clusters=k, n_init=1, random_state=convert(UInt32, seed))
     ScikitLearn.fit!(clustering, convert(Array, X_train))
     return KMeansDiscretizer{T}(clustering, k)
 end
@@ -126,8 +126,8 @@ end
 Discretize the `data` by using its cluster indices in the clustering `d` as discrete
 values. `d` is obtained from `KMeansDiscretizer()`.
 """
-Discretizers.encode(d::KMeansDiscretizer{T}, X_data::Matrix{T}) where T<:Number =
-    convert(Array{Int64, 1}, ScikitLearn.predict(d.model, X_data)) .+ 1
+Discretizers.encode(d::KMeansDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number =
+    convert(Array{Int64, 1}, ScikitLearn.predict(d.model, convert(Matrix, X_data))) .+ 1
 
 bins(d::KMeansDiscretizer) = collect(1:d.k)
 
