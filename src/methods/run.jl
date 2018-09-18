@@ -69,15 +69,13 @@ response matrix `R`.
 - `inspect = nothing`
   is a function `(f_k::Array, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
-- `loggingstream = DevNull`
-  is an optional `IO` stream to write log messages to.
 """
 function run(R::Matrix{Float64}, g::Array{T,1};
              n_df::Number = size(R, 2),
              K::Int = 100,
              epsilon::Float64 = 1e-6,
              inspect::Function = (args...) -> nothing,
-             loggingstream::IO = DevNull) where T<:Number
+             loggingstream::IO = devnull) where T<:Number
     
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
@@ -113,7 +111,7 @@ function run(R::Matrix{Float64}, g::Array{T,1};
     f += try
         - inv(H_lsq) * _lsq_g(R, g)(f)
     catch err
-        if isa(err, Base.LinAlg.SingularException) # pinv instead of inv only required if more y than x bins
+        if isa(err, SingularException) # pinv instead of inv only required if more y than x bins
             @warn "LSq hessian is singular - using pseudo inverse in RUN"
             - pinv(H_lsq) * _lsq_g(R, g)(f)
         else
@@ -135,14 +133,15 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         end
         
         # eigendecomposition of the Hessian: H_f == U*D*U' (complex conversion required if more y than x bins)
-        eigvals_H, U = eig(H_f)
-        D = diagm(real.(complex.(eigvals_H) .^ (-1/2))) # D^(-1/2)
+        eigen_H = eigen(H_f)
+        U = eigen_H.vectors
+        D = Matrix(Diagonal(real.(complex.(eigen_H.values) .^ (-1/2)))) # D^(-1/2)
         
         # eigendecomposition of transformed Tikhonov matrix: C2 == U_C*S*U_C'
-        eigvals_C, U_C = eig(Symmetric( D*U' * C * U*D ))
+        eigen_C = eigen(Symmetric( D*U' * C * U*D ))
         
         # select tau (special case: no regularization if n_df == m)
-        tau = n_df < m ? _tau(n_df, eigvals_C) : 0.0
+        tau = n_df < m ? _tau(n_df, eigen_C.values) : 0.0
         
         # 
         # Taking a step in the transformed problem and transforming back to the actual
@@ -150,7 +149,8 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         # error. In the transformed problem, therefore only tau is chosen. The step is taken 
         # in the original problem instead of the commented-out solution.
         # 
-        # S   = diagm(eigvals_C)
+        # U_C = eigen_C.vectors
+        # S   = diagm(eigen_C.values)
         # f_2 = 1/2 * inv(eye(S) + tau*S) * (U*D*U_C)' * (H_f * f - g_f)
         # f   = (U*D*U_C) * f_2
         # 
@@ -161,19 +161,19 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         catch err
             
             # try again with pseudo inverse
-            if isa(err, Base.LinAlg.SingularException) || isa(err, Base.LinAlg.LAPACKException)
+            if isa(err, SingularException) || isa(err, LAPACKException)
                 try
                     step = - pinv(H_f) * g_f # update step
-                    if isa(err, Base.LinAlg.SingularException)
+                    if isa(err, SingularException)
                         @warn "MaxL Hessian is singular - using pseudo inverse in RUN"
                     else
                         @warn "LAPACKException on inversion of MaxL Hessian - using pseudo inverse in RUN"
                     end
                     step # return update step after warning is emitted and only if computation is successful
                 catch err2
-                    if isa(err, Base.LinAlg.LAPACKException) # same exception occurs with pinv?
+                    if isa(err, LAPACKException) # same exception occurs with pinv?
                         @warn "LAPACKException on pseudo inversion of MaxL Hessian - not performing an update in RUN"
-                        zeros(f) # return zero step to not update f
+                        zero(f) # return zero step to not update f
                     else
                         rethrow(err2)
                     end
@@ -187,12 +187,12 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         # monitor progress
         l_now = l(f) + _C_l(tau, C)(f)
         ldiff = l_prev - l_now
-        info(loggingstream, "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)")
+        @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
         inspect(Util.normalizepdf(f), k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
-            info(loggingstream, "RUN convergence assumed from ldiff = $ldiff < epsilon = $epsilon")
+            @debug "RUN convergence assumed from ldiff = $ldiff < epsilon = $epsilon"
             break
         end
         l_prev = l_now
@@ -251,7 +251,7 @@ _maxl_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
                 g[j]*R[j,i1]*R[j,i2] / dot(R[j,:], f)^2
             for j in 1:length(g))
         end
-        full(Symmetric(res))
+        Matrix(Symmetric(res)) # Matrix constructor converts symmetric result to a full matrix
     end
 
 
@@ -273,7 +273,7 @@ _lsq_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
                 R[j,i1]*R[j,i2] / g[j]
             for j in 1:length(g))
         end
-        full(Symmetric(res))
+        Matrix(Symmetric(res))
     end
 
 # regularization term in objective function (both LSq and MaxL)
@@ -291,15 +291,18 @@ _tikhonov_binning(m::Int) =
     if m < 1
         throw(ArgumentError("m has to be greater than zero"))
     elseif m < 3 # stupid case
-        eye(m)
-    elseif m == 3 # not quite intelligent case
-        eye(m) + diagm(repmat([-1], 2), 1) + diagm(repmat([-1], 2), -1) # return value
+        Matrix{Float64}(I, m, m) # identity matrix (was Base.eye(m) before julia-0.7)
+    elseif m == 3 # not quite an intelligent case
+        convert(Matrix{Float64},
+            diagm( 0 => repeat([1], 3),
+                   1 => repeat([-1], 2),
+                  -1 => repeat([-1], 2) ))
     else # usual case
         convert(Matrix{Float64},
-            diagm(vcat([1, 5], repeat([6], inner=max(0, m-4)), [5, 1])) +
-            diagm(vcat([-2], repeat([-4], inner=m-3), [-2]),  1) +
-            diagm(vcat([-2], repeat([-4], inner=m-3), [-2]), -1) +
-            diagm(repeat([1], inner=m-2),  2) +
-            diagm(repeat([1], inner=m-2), -2))
+            diagm( 0 => vcat([1, 5], repeat([6], inner=max(0, m-4)), [5, 1]),
+                   1 => vcat([-2], repeat([-4], inner=m-3), [-2]),
+                  -1 => vcat([-2], repeat([-4], inner=m-3), [-2]),
+                   2 => repeat([1], inner=m-2),
+                  -2 => repeat([1], inner=m-2) ))
     end
 

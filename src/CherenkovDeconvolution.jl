@@ -22,7 +22,7 @@
 module CherenkovDeconvolution
 
 
-using DataFrames
+using LinearAlgebra, DataFrames
 using Optim: optimize # Optim required for adaptive step sizes
 
 export Util, Sklearn

@@ -78,8 +78,6 @@ density function `g`.
 - `inspect = nothing`
   is a function `(f_k::Array, k::Int, chi2s::Float64) -> Any` optionally called in every
   iteration.
-- `loggingstream = DevNull`
-  is an optional `IO` stream to write log messages to.
 """
 function ibu(R::Matrix{Float64}, g::Array{T, 1};
              f_0::Array{Float64, 1} = Float64[],
@@ -87,13 +85,17 @@ function ibu(R::Matrix{Float64}, g::Array{T, 1};
              K::Int = 3,
              epsilon::Float64 = 0.0,
              inspect::Function = (args...) -> nothing,
-             loggingstream::IO = DevNull) where T<:Number
+             loggingstream::IO = devnull) where T<:Number
     
     # check arguments
     if size(R, 1) != length(g)
         throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
     end
     f_0 = _check_prior(f_0, size(R, 2))
+    
+    if loggingstream != devnull
+        @warn "The argument 'loggingstream' is deprecated in v0.1.0. Use the 'with_logger' functionality of julia-0.7 and above." _group=:depwarn
+    end
     
     # initial estimate
     f = Util.normalizepdf(f_0)
@@ -113,12 +115,12 @@ function ibu(R::Matrix{Float64}, g::Array{T, 1};
         
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
-        info(loggingstream, "IBU iteration $k/$K (chi2s = $chi2s)")
+        @debug "IBU iteration $k/$K (chi2s = $chi2s)"
         inspect(f, k, chi2s)
         
         # stop when convergence is assumed
         if chi2s < epsilon
-            info(loggingstream, "IBU convergence assumed from chi2s = $chi2s < epsilon = $epsilon")
+            @debug "IBU convergence assumed from chi2s = $chi2s < epsilon = $epsilon"
             break
         end
         
@@ -130,7 +132,7 @@ end
 
 # reverse the transfer with Bayes' rule, given the transfer matrix R and the prior f_0
 function _ibu_reverse_transfer(R::Matrix{Float64}, f_0::Array{Float64, 1})
-    B = zeros(R')
+    B = zero(R')
     for j in 1:size(R, 1)
         B[:, j] = R[j, :] .* f_0 ./ dot(R[j, :], f_0)
     end

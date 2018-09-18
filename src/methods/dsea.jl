@@ -79,7 +79,7 @@ function dsea(X_data::Matrix{TN},
               K::Int64 = 1,
               epsilon::Float64 = 0.0,
               inspect::Function = (args...) -> nothing,
-              loggingstream::IO = DevNull,
+              loggingstream::IO = devnull,
               return_contributions::Bool = false) where {TN<:Number, TI<:Int}
     # 
     # Note: X_data, X_train, and y_train are converted to actual Array objects because
@@ -93,7 +93,7 @@ function dsea(X_data::Matrix{TN},
     end
     f_0 = _check_prior(f_0, recode_dict)
     
-    if loggingstream != DevNull
+    if loggingstream != devnull
         @warn "The argument 'loggingstream' is deprecated in v0.1.0. Use the 'with_logger' functionality of julia-0.7 and above." _group=:depwarn
     end
     
