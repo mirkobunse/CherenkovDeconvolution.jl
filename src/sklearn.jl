@@ -26,9 +26,6 @@ using DataFrames, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall
 import CherenkovDeconvolution.Util
 
-@sk_import tree        : DecisionTreeClassifier
-@sk_import cluster     : KMeans
-
 
 export ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
 export train_and_predict_proba, encode, bins
@@ -77,7 +74,8 @@ function TreeDiscretizer(X_train::AbstractMatrix{TN},
     y_train_c = convert(Array, y_train)
     
     # train classifier
-    classifier = DecisionTreeClassifier(max_leaf_nodes = J,
+    @sk_import tree : DecisionTreeClassifier
+    classifier = DecisionTreeClassifier(max_leaf_nodes = convert(UInt32, J),
                                         criterion      = criterion,
                                         random_state   = convert(UInt32, seed))
     ScikitLearn.fit!(classifier, X_train_c, y_train_c)
@@ -116,6 +114,7 @@ Unsupervised clustering using all columns in `train`, finding `k` clusters.
 It can be used to `discretize()` multidimensional data.
 """
 function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::UInt32=rand(UInt32)) where T<:Number
+    @sk_import cluster : KMeans
     clustering = KMeans(n_clusters=k, n_init=1, random_state=seed)
     ScikitLearn.fit!(clustering, convert(Array, X_train))
     return KMeansDiscretizer{T}(clustering, k)
