@@ -4,17 +4,17 @@ os:
   - linux
   - osx
 julia:
-  - 0.7
   - 1.0
+  - nightly
 notifications:
   email: false
 git:
   depth: 99999999
 
-# allow failures on julia-1.0, with which ScikitLearn.jl does not work yet
+# allow failures on nightly julia
 matrix:
   allow_failures:
-    - julia: 1.0
+    - julia: nightly
 
 # empty environment variable lets PyCall set up a new miniconda environment
 env:
