@@ -9,12 +9,19 @@ Deconvolution algorithms for Cherenkov astronomy and other use cases.
 ## Getting Started
 
 This package is documented on [our deconvolution website](https://sfb876.tu-dortmund.de/deconvolution).
-You can install it with the Julia package manager:
+It is installed with the package manager (Julia-0.7 and above):
 
-      Pkg.clone("git://github.com/mirkobunse/CherenkovDeconvolution.jl.git")
+```julia
+using Pkg
+Pkg.clone("git://github.com/mirkobunse/CherenkovDeconvolution.jl.git")
+```
 
 The [example directory](https://github.com/mirkobunse/CherenkovDeconvolution.jl/tree/master/example)
 explains, how to use the package.
+
+**Caution:** Since [ScikitLearn.jl](https://github.com/cstjean/ScikitLearn.jl) does not yet
+support Julia-1.0, we can not provide full support either. However, apart from the
+`CherenkovDeconvolution.Sklearn` sub-module, our package is ready for this major Julia release.
 
 
 
