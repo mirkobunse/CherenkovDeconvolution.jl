@@ -6,16 +6,15 @@ os:
 julia:
   - 0.7
   - 1.0
-  - nightly
 notifications:
   email: false
 git:
   depth: 99999999
 
-# allow failures on nightly julia
+# allow failures on julia-1.0, with which ScikitLearn.jl does not work yet
 matrix:
   allow_failures:
-    - julia: nightly
+    - julia: 1.0
 
 # empty environment variable lets PyCall set up a new miniconda environment
 env:
@@ -23,4 +22,4 @@ env:
 
 # push coverage results to Codecov
 after_success:
-  - julia -e 'cd(Pkg.dir("CherenkovDeconvolution")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder());'
+  - julia -e 'cd(Pkg.dir("CherenkovDeconvolution")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
