@@ -36,7 +36,7 @@ export train_and_predict_proba, encode, bins
 
 Obtain a `train_and_predict_proba` object for DSEA.
 """
-function train_and_predict_proba(classifier::PyObject)
+function train_and_predict_proba(classifier)
     return (X_data::Matrix, X_train::Matrix, y_train::Array, w_train::Array) -> begin
         ScikitLearn.fit!(classifier, X_train, y_train; sample_weight = w_train)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
