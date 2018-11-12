@@ -36,13 +36,18 @@ export train_and_predict_proba, encode, bins
 
 
 """
-    train_and_predict_proba(classifier)
+    train_and_predict_proba(classifier, :sample_weight)
 
 Obtain a `train_and_predict_proba` object for DSEA.
+
+The optional argument gives the name of the `classifier` parameter with which the sample
+weight can be specified when calling `ScikitLearn.fit!`. Usually, its value does not need to
+be changed. However, if for example a scikit-learn `Pipeline` object is the `classifier`,
+the name of the step has to be provided like `:stepname__sample_weight`.
 """
-function train_and_predict_proba(classifier)
+function train_and_predict_proba(classifier, sample_weight::Symbol=:sample_weight)
     return (X_data::Matrix, X_train::Matrix, y_train::Array, w_train::Array) -> begin
-        ScikitLearn.fit!(classifier, X_train, y_train; sample_weight = w_train)
+        ScikitLearn.fit!(classifier, X_train, y_train; (sample_weight, w_train))
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end
