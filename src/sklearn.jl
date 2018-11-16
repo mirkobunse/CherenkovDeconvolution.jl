@@ -43,7 +43,7 @@ the name of the step has to be provided like `:stepname__sample_weight`.
 """
 function train_and_predict_proba(classifier, sample_weight::Symbol=:sample_weight)
     return (X_data::Matrix, X_train::Matrix, y_train::Array, w_train::Array) -> begin
-        ScikitLearn.fit!(classifier, X_train, y_train; (sample_weight, w_train))
+        ScikitLearn.fit!(classifier, X_train, y_train; sample_weight => w_train)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end
