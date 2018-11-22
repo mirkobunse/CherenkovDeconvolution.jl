@@ -30,9 +30,15 @@ export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
 
 
 """    
-    fit_pdf(x[, bins])
+    fit_pdf(x[, bins]; normalize=true, laplace=false)
 
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
+
+The result is normalized by default. If it is not normalized now, you can do so later by
+calling `Util.normalizepdf`.
+
+Laplace correction means that at least one example is assumed in every bin, so that no bin
+has probability zero. This feature is disabled by default.
 """
 function fit_pdf{T<:Int}(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
                          normalize::Bool=true, laplace::Bool=false)
