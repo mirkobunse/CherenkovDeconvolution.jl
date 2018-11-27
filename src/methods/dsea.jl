@@ -100,7 +100,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     f_train = Util.fit_pdf(y_train, laplace=true)                # training pdf with Laplace correction
     w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f # bin weights
     w_train = _dsea_weights(y_train, w_bin)                      # instance weights
-    inspect(f, 0, NaN, NaN)
+    inspect(_recode_result(f, recode_dict), 0, NaN, NaN)
     
     # iterative deconvolution
     proba = Matrix{Float64}(0, 0) # empty matrix
@@ -115,7 +115,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         # monitor progress
         chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
         info(loggingstream, "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)")
-        inspect(f, k, chi2s, alphak)
+        inspect(_recode_result(f, recode_dict), k, chi2s, alphak)
         
         # stop when convergence is assumed
         if chi2s < epsilon # also holds when alpha is zero
