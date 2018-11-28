@@ -184,25 +184,19 @@ alpha_decay_mul(eta::Float64, a_1::Float64=1.0) =
     (k::Int, pk::Array{Float64,1}, f::Array{Float64,1}) -> a_1 * k^(eta-1)
 
 """
-    alpha_adaptive_run(x_data, x_train, y_train[, bins, tau = 0])
+    alpha_adaptive_run(x_data, x_train, y_train[, tau = 0]; bins, bins_x)
 
 Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
 This object adapts the DSEA step size to the current estimate by maximizing the likelihood
 of the next estimate in the search direction of the current iteration.
 """
-function alpha_adaptive_run{T<:Int}( x_data  :: Array{T,1},
-                                     x_train :: Array{T,1},
-                                     y_train :: Array{T,1},
-                                     bins    :: AbstractArray{T,1} = 1:maximum(y_train),
-                                     tau     :: Number = 0.0 )
-    
-    bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
-    
-    # recode indices
-    recode_dict, y_train = _recode_indices(bins, y_train)
-    _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
-    
-    # prepare discrete deconvolution problem
+function alpha_adaptive_run{T<:Int}( x_data  :: Vector{T},
+                                     x_train :: Vector{T},
+                                     y_train :: Vector{T},
+                                     tau     :: Number = 0.0;
+                                     bins    :: AbstractVector{T} = 1:maximum(y_train),
+                                     bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)) )
+    # set up the discrete deconvolution problem
     R = Util.fit_R(y_train, x_train, bins_y = bins, bins_x = bins_x)
     g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
     
@@ -217,7 +211,6 @@ function alpha_adaptive_run{T<:Int}( x_data  :: Array{T,1},
         a_min, a_max = _alpha_range(pk, f)
         optimize(a -> negloglike(f + a * pk), a_min, a_max).minimizer # from Optim.jl
     end
-    
 end
 
 # range of admissible alpha values
