@@ -96,7 +96,7 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
     f_0 = _check_prior(f_0, size(R, 2))
     
     # initial estimate
-    f = Util.normalizepdf(f_0)
+    f = Util.normalizepdf(f_0, warn=false)
     inspect(f, 0, NaN) # inspect prior
     
     # iterative Bayesian deconvolution
@@ -108,7 +108,7 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
         # = = = = = = = = = = = = = = = = = = =
         
         # === apply Bayes' rule ===
-        f = Util.normalizepdf(_ibu_reverse_transfer(R, f_prev_smooth) * g)
+        f = Util.normalizepdf(_ibu_reverse_transfer(R, f_prev_smooth) * g, warn=false)
         # = = = = = = = = = = = = =
         
         # monitor progress

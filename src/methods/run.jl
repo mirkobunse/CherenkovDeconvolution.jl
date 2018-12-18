@@ -120,7 +120,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
             rethrow(err)
         end
     end
-    inspect(Util.normalizepdf(f), 1, NaN, NaN)
+    inspect(Util.normalizepdf(f, warn=false), 1, NaN, NaN)
     
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
@@ -188,7 +188,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         l_now = l(f) + _C_l(tau, C)(f)
         ldiff = l_prev - l_now
         info(loggingstream, "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)")
-        inspect(Util.normalizepdf(f), k, ldiff, tau)
+        inspect(Util.normalizepdf(f, warn=false), k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -198,7 +198,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         l_prev = l_now
         
     end
-    return Util.normalizepdf(f)
+    return Util.normalizepdf(f, warn=false)
     
 end
 

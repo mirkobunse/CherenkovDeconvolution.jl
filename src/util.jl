@@ -99,21 +99,21 @@ function normalizetransfer{T<:Number}(R::AbstractMatrix{T})
 end
 
 
-"""
-    normalizepdf(array...)
-    normalizepdf!(array...)
+_DOC_NORMALIZEPDF = """
+    normalizepdf(array...; warn=true)
+    normalizepdf!(array...; warn=true)
 
 Normalize each array to a discrete probability density function.
-"""
-normalizepdf(a::AbstractArray...) = normalizepdf!(map(ai -> map(Float64, ai), a)...)
 
+By default, `warn` if coping with NaNs, Infs, or negative values.
 """
-    normalizepdf(array...)
-    normalizepdf!(array...)
+@doc _DOC_NORMALIZEPDF normalizepdf  # map doc string to function
+@doc _DOC_NORMALIZEPDF normalizepdf!
 
-Normalize each array to a discrete probability density function.
-"""
-function normalizepdf!(a::AbstractArray...)
+normalizepdf(a::AbstractArray...; kwargs...) =
+    normalizepdf!(map(ai -> map(Float64, ai), a)...; kwargs...)
+
+function normalizepdf!(a::AbstractArray...; warn::Bool=true)
     
     arrs = [ a... ] # convert tuple to array
     single = length(a) == 1 # normalization of single array?
@@ -121,10 +121,10 @@ function normalizepdf!(a::AbstractArray...)
     # check for NaNs and Infs
     nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
     if sum(nans) > 0
-        if _WARN_NORMALIZE
-            warn("Setting NaNs and Infs ",
-                 single ? "" : "in $(sum(nans)) arrays ",
-                 "to zero")
+        if warn
+            Base.warn("Setting NaNs and Infs ",
+                      single ? "" : "in $(sum(nans)) arrays ",
+                      "to zero")
         end
         for arr in map(i -> arrs[i], find(nans))
             arr[isnan.(arr)] = 0
@@ -136,10 +136,10 @@ function normalizepdf!(a::AbstractArray...)
     # check for negative values
     negs = [ any(arr .< 0) for arr in arrs ]
     if sum(negs) > 0
-        if _WARN_NORMALIZE
-            warn("Setting negative values ",
-                 single ? "" : "in $(sum(negs)) arrays ",
-                 "to zero")
+        if warn
+            Base.warn("Setting negative values ",
+                      single ? "" : "in $(sum(negs)) arrays ",
+                      "to zero")
         end
         for arr in map(i -> arrs[i], find(negs))
             arr[arr .< 0] = 0
@@ -151,10 +151,10 @@ function normalizepdf!(a::AbstractArray...)
     sums = map(sum, arrs)
     zers = map(iszero, sums)
     if sum(zers) > 0
-        if _WARN_NORMALIZE
-            warn(single ? "zero vector " : "$(sum(zers)) zero vectors ",
-                 "replaced by uniform distribution",
-                 single ? "" : "s")
+        if warn
+            Base.warn(single ? "zero vector " : "$(sum(zers)) zero vectors ",
+                      "replaced by uniform distribution",
+                      single ? "" : "s")
         end
         for arr in map(i -> arrs[i], find(zers))
             idim   = length(arr)
@@ -176,7 +176,6 @@ function normalizepdf!(a::AbstractArray...)
     end
     
 end
-_WARN_NORMALIZE = true
 
 """
     polynomial_smoothing([o = 2, warn = true])
@@ -212,7 +211,7 @@ function _repair_smoothing(f::Array{Float64,1}, w::Bool)
                    end
         end
     end
-    return normalizepdf(f)
+    return normalizepdf(f, warn=false)
 end
 
 
@@ -251,10 +250,10 @@ function reduce{TN<:Number}(f::Array{TN,1}, factor::Int, keepdim::Bool=false; no
     
     # keep input dimension, if desired
     if !keepdim
-        return normalize ? normalizepdf(f_red) : f_red
+        return normalize ? normalizepdf(f_red, warn=false) : f_red
     else
         f_exp = vcat(map(v -> repmat([v], factor), f_red)...)[1:length(f)] # re-expand
-        return normalize ? normalizepdf(f_exp) : f_exp
+        return normalize ? normalizepdf(f_exp, warn=false) : f_exp
     end
     
 end
@@ -288,7 +287,7 @@ Symmetric Chi Square distance between histograms `a` and `b`.
 """
 function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normalize = true)
     if normalize
-        a, b = normalizepdf(a, b)
+        a, b = normalizepdf(a, b, warn=false)
     end
     selection = .|(a .> 0, b .> 0) # limit computation to denominators > 0
     a = a[selection]

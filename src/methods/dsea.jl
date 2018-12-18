@@ -97,9 +97,9 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
     
     # initial estimate
     f       = f_0
-    f_train = Util.fit_pdf(y_train, laplace=true)                # training pdf with Laplace correction
-    w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f # bin weights
-    w_train = _dsea_weights(y_train, w_bin)                      # instance weights
+    f_train = Util.fit_pdf(y_train, laplace=true)                            # training pdf with Laplace correction
+    w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train, warn=false) : f # bin weights
+    w_train = _dsea_weights(y_train, w_bin)                                  # instance weights
     inspect(_recode_result(f, recode_dict), 0, NaN, NaN)
     
     # iterative deconvolution
@@ -131,7 +131,7 @@ function dsea{TN<:Number, TI<:Int}(X_data::Matrix{TN},
         # == smoothing and reweighting in between iterations ==
         if k < K
             f = smoothing(f)
-            w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train) : f
+            w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train, warn=false) : f
             w_train = _dsea_weights(y_train, w_bin)
         end
         # = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -151,7 +151,7 @@ _dsea_weights{T<:Int}(y_train::Array{T, 1}, w_bin::Array{Float64, 1}) =
 
 # the reconstructed estimate is the sum of confidences in each bin
 _dsea_reconstruct(proba::Matrix{Float64}) =
-    Util.normalizepdf(map(i -> sum(proba[:, i]), 1:size(proba, 2)))
+    Util.normalizepdf(map(i -> sum(proba[:, i]), 1:size(proba, 2)), warn=false)
 
 # the step taken by DSEA+, where alpha may be a constant or a function
 function _dsea_step(k::Int64, f::Array{Float64, 1}, f_prev::Array{Float64, 1},
