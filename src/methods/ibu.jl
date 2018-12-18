@@ -31,19 +31,22 @@ function ibu{T<:Int}(x_data::AbstractArray{T, 1},
                      y_train::AbstractArray{T, 1},
                      bins::AbstractArray{T, 1} = 1:maximum(y_train);
                      kwargs...)
-                     
-    bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
     
     # recode indices
+    bins_x = 1:maximum(vcat(x_data, x_train))
     recode_dict, y_train = _recode_indices(bins, y_train)
     _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
+    bins = 1:maximum(y_train) # update
+    bins_x = 1:maximum(vcat(x_train, x_data))
+    
+    # inspect with original coding of labels
     kwargs_dict = Dict(kwargs)
-    if haskey(kwargs_dict, :f_0)
-        kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
-    end
     if haskey(kwargs_dict, :inspect)
         fun = kwargs_dict[:inspect] # inspection function
         kwargs_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
+    end
+    if haskey(kwargs_dict, :f_0) # also recode the prior
+        kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
     end
     
     # prepare arguments
