@@ -44,6 +44,46 @@ include("methods/dsea.jl")
 # additional helpers
 # 
 
+# do-syntax provider which sets up R and g, then calls the solver (e.g. run or ibu)
+function _discrete_deconvolution( solver  :: Function,
+                                  x_data  :: AbstractArray{T, 1},
+                                  x_train :: AbstractArray{T, 1},
+                                  y_train :: AbstractArray{T, 1},
+                                  bins_y  :: AbstractArray{T, 1},
+                                  kw_dict :: Dict;
+                                  normalize_g::Bool=true ) where T<:Int
+    # recode indices
+    recode_dict, y_train = _recode_indices(bins_y, y_train)
+    _, x_data, x_train   = _recode_indices(1:maximum(vcat(x_data, x_train)), x_data, x_train)
+    
+    # recode the prior (if specified)
+    if haskey(kw_dict, :f_0)
+        kw_dict[:f_0] = _check_prior(kw_dict[:f_0], recode_dict)
+    end
+    
+    # inspect with original coding of labels
+    if haskey(kw_dict, :inspect)
+        fun = kw_dict[:inspect] # inspection function
+        kw_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
+    end
+    
+    # are ratios fitted instead of pdfs/counts?
+    fit_ratios = false
+    if haskey(kw_dict, :fit_ratios)
+        fit_ratios = kw_dict[:fit_ratios]
+        delete!(kw_dict, :fit_ratios)
+    end
+    
+    # prepare the arguments for the solver
+    bins_x = 1:maximum(vcat(x_data, x_train)) # ensure same bins in R and g
+    R = Util.fit_R(y_train, x_train, bins_x = bins_x, normalize = !fit_ratios)
+    g = Util.fit_pdf(x_data, bins_x, normalize = normalize_g) # absolute counts instead of pdf
+    
+    # call solver
+    f_est = solver(R, g; kw_dict...)
+    return _recode_result(f_est, recode_dict) # revert recoding of labels
+end
+
 # check and repair the f_0 argument
 function _check_prior(f_0::Array{Float64,1}, m::Int64)
     if length(f_0) == 0

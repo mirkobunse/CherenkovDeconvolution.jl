@@ -20,35 +20,12 @@ one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and
 This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
 """
-function run{T<:Int}(x_data::AbstractArray{T, 1},
-                     x_train::AbstractArray{T, 1},
-                     y_train::AbstractArray{T, 1},
-                     bins::AbstractArray{T, 1} = 1:maximum(y_train);
-                     kwargs...)
-    
-    # recode indices
-    bins_x = 1:maximum(vcat(x_data, x_train))
-    recode_dict, y_train = _recode_indices(bins, y_train)
-    _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
-    bins = 1:maximum(y_train) # update
-    bins_x = 1:maximum(vcat(x_train, x_data))
-    
-    # inspect with original coding of labels
-    kwargs_dict = Dict(kwargs)
-    if haskey(kwargs_dict, :inspect)
-        fun = kwargs_dict[:inspect] # inspection function
-        kwargs_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
-    end
-    
-    # prepare arguments
-    R = Util.fit_R(y_train, x_train, bins_y = bins, bins_x = bins_x)
-    g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
-    
-    # deconvolve
-    f = run(R, g; kwargs_dict...)
-    return _recode_result(f, recode_dict) # revert recoding of labels
-    
-end
+run( x_data  :: AbstractArray{T, 1},
+     x_train :: AbstractArray{T, 1},
+     y_train :: AbstractArray{T, 1},
+     bins_y  :: AbstractArray{T, 1} = 1:maximum(y_train);
+     kwargs... ) where T<:Int =
+  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict(kwargs), normalize_g=false)
 
 """
     run(R, g; kwargs...)
