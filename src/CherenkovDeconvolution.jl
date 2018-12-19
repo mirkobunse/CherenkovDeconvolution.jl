@@ -50,48 +50,57 @@ function _discrete_deconvolution( solver  :: Function,
                                   x_train :: AbstractArray{T, 1},
                                   y_train :: AbstractArray{T, 1},
                                   bins_y  :: AbstractArray{T, 1},
-                                  kw_dict :: Dict;
+                                  kw_dict :: Dict{Symbol, Any};
                                   normalize_g::Bool=true ) where T<:Int
     # recode indices
     recode_dict, y_train = _recode_indices(bins_y, y_train)
     _, x_data, x_train   = _recode_indices(1:maximum(vcat(x_data, x_train)), x_data, x_train)
     
-    # recode the prior (if specified)
-    if haskey(kw_dict, :f_0)
-        kw_dict[:f_0] = _check_prior(kw_dict[:f_0], recode_dict)
-    end
-    
-    # inspect with original coding of labels
-    if haskey(kw_dict, :inspect)
-        fun = kw_dict[:inspect] # inspection function
-        kw_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
-    end
-    
-    # are ratios fitted instead of pdfs/counts?
-    fit_ratios = false
-    if haskey(kw_dict, :fit_ratios)
-        fit_ratios = kw_dict[:fit_ratios]
-        delete!(kw_dict, :fit_ratios)
-    end
-    
     # prepare the arguments for the solver
     bins_x = 1:maximum(vcat(x_data, x_train)) # ensure same bins in R and g
+    fit_ratios = get(kw_dict, :fit_ratios, false) # ratios fitted instead of pdfs?
     R = Util.fit_R(y_train, x_train, bins_x = bins_x, normalize = !fit_ratios)
     g = Util.fit_pdf(x_data, bins_x, normalize = normalize_g) # absolute counts instead of pdf
     
-    # call solver
+    # recode the prior (if specified)
+    f_0 = fit_ratios ? ones(size(R, 2)) : ones(size(R, 2)) ./ size(R, 2) # default (equal to training density or uniform)
+    if haskey(kw_dict, :f_0)
+        f_0 = _check_prior(kw_dict[:f_0], recode_dict) # also normalizes f_0
+        if fit_ratios
+            f_0 = f_0 ./ Util.fit_pdf(y_train) # pdf prior -> ratio prior
+        end
+    end
+    kw_dict[:f_0] = f_0 # update/insert
+    
+    # inspect with original coding of labels
+    if haskey(kw_dict, :inspect)
+        inspect = kw_dict[:inspect] # inspection function
+        kw_dict[:inspect] = (f_est, args...) -> begin
+            if fit_ratios
+                f_est = f_est .* Util.fit_pdf(y_train) # ratio solution -> pdf solution
+            end
+            inspect(Util.normalizepdf(_recode_result(f_est, recode_dict), warn=false), args...)
+        end
+    end
+    
+    # call the solver (ibu, run,...)
     f_est = solver(R, g; kw_dict...)
-    return _recode_result(f_est, recode_dict) # revert recoding of labels
+    if fit_ratios
+        f_est = f_est .* Util.fit_pdf(y_train) # ratio solution -> pdf solution
+    end
+    return Util.normalizepdf(_recode_result(f_est, recode_dict)) # revert recoding of labels
 end
 
 # check and repair the f_0 argument
-function _check_prior(f_0::Array{Float64,1}, m::Int64)
+function _check_prior(f_0::Array{Float64,1}, m::Int64, normalize::Bool=true)
     if length(f_0) == 0
         return ones(m) ./ m
     elseif length(f_0) != m
         throw(DimensionMismatch("dim(f_0) = $(length(f_0)) != $m, the number of classes"))
-    else # f_0 is provided and alright
+    elseif normalize # f_0 is provided and alright
         return Util.normalizepdf(f_0) # ensure pdf
+    else
+        return f_0
     end
 end
 

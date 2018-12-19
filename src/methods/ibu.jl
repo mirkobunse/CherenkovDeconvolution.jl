@@ -31,7 +31,7 @@ ibu( x_data  :: AbstractArray{T, 1},
      y_train :: AbstractArray{T, 1},
      bins_y  :: AbstractArray{T, 1} = 1:maximum(y_train);
      kwargs... ) where T<:Int =
-  _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict(kwargs))
+  _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
 
 """
     ibu(R, g; kwargs...)
@@ -64,7 +64,8 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
                         K::Int = 3,
                         epsilon::Float64 = 0.0,
                         inspect::Function = (args...) -> nothing,
-                        loggingstream::IO = DevNull)
+                        loggingstream::IO = DevNull,
+                        kwargs...)
     
     # check arguments
     if size(R, 1) != length(g)

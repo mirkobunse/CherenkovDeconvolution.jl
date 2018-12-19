@@ -25,7 +25,7 @@ run( x_data  :: AbstractArray{T, 1},
      y_train :: AbstractArray{T, 1},
      bins_y  :: AbstractArray{T, 1} = 1:maximum(y_train);
      kwargs... ) where T<:Int =
-  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict(kwargs), normalize_g=false)
+  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
 
 """
     run(R, g; kwargs...)
@@ -54,7 +54,8 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
                         K::Int = 100,
                         epsilon::Float64 = 1e-6,
                         inspect::Function = (args...) -> nothing,
-                        loggingstream::IO = DevNull)
+                        loggingstream::IO = DevNull,
+                        kwargs...)
     
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
