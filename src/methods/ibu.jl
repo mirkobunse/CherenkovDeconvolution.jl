@@ -80,7 +80,7 @@ function ibu(R::Matrix{TR}, g::Vector{Tg};
     end
     
     # initial estimate
-    f = _check_prior(f_0, size(R, 2), !fit_ratios) # do not normalize if ratios are fitted
+    f = _check_prior(f_0, size(R, 2), fit_ratios) # do not normalize if ratios are fitted
     inspect(f, 0, NaN) # inspect prior
     
     # iterative Bayesian deconvolution

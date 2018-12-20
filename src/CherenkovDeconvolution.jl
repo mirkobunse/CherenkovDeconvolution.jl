@@ -63,14 +63,15 @@ function _discrete_deconvolution( solver  :: Function,
     g = Util.fit_pdf(x_data, bins_x, normalize = normalize_g) # absolute counts instead of pdf
     
     # recode the prior (if specified)
-    f_0 = fit_ratios ? ones(size(R, 2)) : ones(size(R, 2)) ./ size(R, 2) # default (equal to training density or uniform)
     if haskey(kw_dict, :f_0)
         f_0 = _check_prior(kw_dict[:f_0], recode_dict) # also normalizes f_0
         if fit_ratios
             f_0 = f_0 ./ Util.fit_pdf(y_train) # pdf prior -> ratio prior
         end
+        kw_dict[:f_0] = f_0 # update
+    elseif fit_ratios
+        kw_dict[:f_0] = ones(size(R, 2)) ./ Util.fit_pdf(y_train) # uniform prior instead of f_train
     end
-    kw_dict[:f_0] = f_0 # update/insert
     
     # inspect with original coding of labels
     if haskey(kw_dict, :inspect)
@@ -92,15 +93,15 @@ function _discrete_deconvolution( solver  :: Function,
 end
 
 # check and repair the f_0 argument
-function _check_prior(f_0::Array{Float64,1}, m::Int64, normalize::Bool=true)
+function _check_prior(f_0::Vector{Float64}, m::Int64, fit_ratios::Bool=false)
     if length(f_0) == 0
-        return ones(m) ./ m
+        return fit_ratios ? ones(m) : ones(m) ./ m
     elseif length(f_0) != m
         throw(DimensionMismatch("dim(f_0) = $(length(f_0)) != $m, the number of classes"))
-    elseif normalize # f_0 is provided and alright
-        return Util.normalizepdf(f_0) # ensure pdf
-    else
+    elseif fit_ratios # f_0 is provided and alright
         return f_0
+    else
+        return Util.normalizepdf(f_0) # ensure pdf (default case)
     end
 end
 
