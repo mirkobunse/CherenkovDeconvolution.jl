@@ -1,46 +1,25 @@
 """
-    ibu(data, train, x, y[, bins_y; kwargs...])
+    ibu(data, train, x, y[, bins]; kwargs...)
 
-Iterative Bayesian Unfolding of the target distribution in the DataFrame `data`. The
-deconvolution is inferred from the DataFrame `train`, where the target column `y` and the
-observable column `x` are given.
+    ibu(x_data, x_train, y_train[, bins]; kwargs...)
 
-This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
-the two DataFrames.
-"""
-ibu(data::AbstractDataFrame, train::AbstractDataFrame, x::Symbol, y::Symbol,
-    bins_y::AbstractArray = 1:maximum(train[y]); kwargs...) =
-  ibu(data[x], train[x], train[y], bins_y; kwargs...)
-
-"""
-    ibu(x_data, x_train, y_train[, bins_y; kwargs...])
-
-Iterative Bayesian Unfolding of the target distribution, given the observations in the
-one-dimensional array `x_data`.
-
-The deconvolution is inferred from `x_train` and `y_train`. Both of these arrays have to be
-discrete, i.e., they must contain indices instead of actual values. All expected label
-indices (for cases where `y_train` may not contain some of the indices) are optionally
-provided as `bins_y`.
-
-This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
-the three arrays.
-
-**Caution:** In this form, the keyword argument `f_0` always specifies a pdf prior,
-irrespective of the value of `fit_ratios`.
-"""
-ibu( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
-
-"""
     ibu(R, g; kwargs...)
 
-Iterative Bayesian Unfolding with the detector response matrix `R` and the observable
-density function `g`.
+
+Deconvolve the observed data applying the *Iterative Bayesian Unfolding* trained on the
+given training set.
+
+The first form of this function works on the two DataFrames `data` and `train`, where `y`
+specifies the target column to be deconvolved (this column has to be present in `train`)
+and `x` specifies the observed column present in both DataFrames. The second form accordingly
+works on vectors and the third form makes use of a pre-defined detector response matrix `R`
+and an observed (discrete) probability density `g`. In the first two forms, `R` and `g` are
+directly obtained from the data and the keyword arguments.
+
+The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
+`train[y]`) must contain label/observation indices rather than actual values. All expected
+indices in `y_train` are optionally provided as `bins`.
+
 
 **Keyword arguments**
 
@@ -58,13 +37,35 @@ density function `g`.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
-  According to this setting, `f_0` specifies a ratio prior or a pdf prior.
 - `inspect = nothing`
-  is a function `(f_k::Array, k::Int, chi2s::Float64) -> Any` optionally called in every
+  is a function `(f_k::Vector, k::Int, chi2s::Float64) -> Any` optionally called in every
   iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
+
+
+**Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
+ratio prior or a pdf prior, but only in the third form. In the second form, `f_0` always
+specifies a pdf prior.
 """
+ibu( data   :: AbstractDataFrame,
+     train  :: AbstractDataFrame,
+     x      :: Symbol,
+     y      :: Symbol,
+     bins_y :: AbstractVector = 1:maximum(train[y]);
+     kwargs... ) =
+  ibu(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
+
+
+# Vector form
+ibu( x_data  :: AbstractVector{T},
+     x_train :: AbstractVector{T},
+     y_train :: AbstractVector{T},
+     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
+     kwargs... ) where T<:Int =
+  _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
+
+
 function ibu(R::Matrix{TR}, g::Vector{Tg};
              f_0::Vector{Float64} = Float64[],
              smoothing::Function = Base.identity,

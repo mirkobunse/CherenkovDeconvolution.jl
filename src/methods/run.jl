@@ -1,37 +1,25 @@
 """
-    run(data, train, y, x; kwargs...)
+    run(data, train, x, y[, bins]; kwargs...)
 
-Regularized Unfolding of the target distribution in the DataFrame `data`. The deconvolution
-is inferred from the DataFrame `train`, where the target column `y` and the observable
-column `x` are given.
+    run(x_data, x_train, y_train[, bins]; kwargs...)
 
-This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
-the two DataFrames.
-"""
-run(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol, x::Symbol; kwargs...) =
-    run(data[x], train[x], train[y]; kwargs...)
-
-"""
-    run(x_data, x_train, y_train; kwargs...)
-
-Regularized Unfolding of the target distribution, given the observations in the
-one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and `y_train`.
-
-This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
-the three arrays.
-"""
-run( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
-
-"""
     run(R, g; kwargs...)
 
-Perform RUN with the observed frequency distribution `g` (absolute counts!) and the detector
-response matrix `R`.
+
+Deconvolve the observed data applying the *Regularized Unfolding* trained on the given
+training set.
+
+The first form of this function works on the two DataFrames `data` and `train`, where `y`
+specifies the target column to be deconvolved (this column has to be present in `train`)
+and `x` specifies the observed column present in both DataFrames. The second form accordingly
+works on vectors and the third form makes use of a pre-defined detector response matrix `R`
+and an observed (discrete) frequency distribution `g` (absolute counts, not a pdf!!). In the
+first two forms, `R` and `g` are directly obtained from the data and the keyword arguments.
+
+The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
+`train[y]`) must contain label/observation indices rather than actual values. All expected
+indices in `y_train` are optionally provided as `bins`.
+
 
 **Keyword arguments**
 
@@ -44,11 +32,29 @@ response matrix `R`.
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
 - `inspect = nothing`
-  is a function `(f_k::Array, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
+  is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 """
+run( data   :: AbstractDataFrame,
+     train  :: AbstractDataFrame,
+     x      :: Symbol,
+     y      :: Symbol,
+     bins_y :: AbstractVector = 1:maximum(train[y]);
+     kwargs... ) =
+  run(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
+
+
+# Vector form
+run( x_data  :: AbstractVector{T},
+     x_train :: AbstractVector{T},
+     y_train :: AbstractVector{T},
+     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
+     kwargs... ) where T<:Int =
+  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
+
+
 function run(R::Matrix{TR}, g::Vector{Tg};
              n_df::Number = size(R, 2),
              K::Int = 100,
@@ -186,7 +192,7 @@ function _tau(n_df::Number, eigvals_C::Vector{Float64})
     return res[1] # final tau
 end
 
-# Recursive subroutine of _tau(::Number, ::Array{Float64,1}) for higher precision
+# Recursive subroutine of _tau(::Number, ::Vector{Float64}) for higher precision
 function _tau(n_df::Number, taufunction::Function, min::Float64=-.01, max::Float64=-18.0, i::Int64=2)
     taus = logspace(min, max, 1000)
     ndfs = map(taufunction, taus)

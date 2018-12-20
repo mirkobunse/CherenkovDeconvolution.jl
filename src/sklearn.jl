@@ -53,6 +53,12 @@ function train_and_predict_proba(classifier, sample_weight::Symbol=:sample_weigh
 end
 
 
+"""
+    abstract type ClusterDiscretizer <: AbstractDiscretizer
+
+Supertype of any clustering-based discretizer mapping from an n-dimensional space to a
+single cluster index dimension.
+"""
 abstract type ClusterDiscretizer{T<:Number} <: AbstractDiscretizer{Vector{T}, Int} end
 
 @doc """
@@ -94,10 +100,9 @@ function TreeDiscretizer(X_train::AbstractMatrix{TN},
 end
 
 """
-    encode(d, data)
+    encode(d::TreeDiscretizer, X_data)
 
-Discretize the `data` by using the leaf indices in the decision tree of `d` as discrete
-values. `d` is obtained from `TreeDiscretizer()`.
+Discretize `X_data` using the leaf indices in the decision tree of `d` as discrete values.
 """
 function Discretizers.encode(d::TreeDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number
     x_data = _apply(d.model, convert(Matrix, X_data))
@@ -127,10 +132,9 @@ function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::UInt32=rand
 end
 
 """
-    encode(d, data)
+    encode(d::KMeansDiscretizer, X_data)
 
-Discretize the `data` by using its cluster indices in the clustering `d` as discrete
-values. `d` is obtained from `KMeansDiscretizer()`.
+Discretize `X_data` using the cluster indices of `d` as discrete values.
 """
 Discretizers.encode(d::KMeansDiscretizer{T}, X_data::Matrix{T}) where T<:Number =
     convert(Vector{Int64}, ScikitLearn.predict(d.model, X_data)) .+ 1

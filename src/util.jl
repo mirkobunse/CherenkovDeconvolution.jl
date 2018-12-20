@@ -114,7 +114,6 @@ normalizepdf(a::AbstractVector...; kwargs...) =
     normalizepdf!(map(ai -> map(Float64, ai), a)...; kwargs...)
 
 function normalizepdf!(a::AbstractVector...; warn::Bool=true)
-    
     arrs = [ a... ] # convert tuple to array
     single = length(a) == 1 # normalization of single array?
     
@@ -174,7 +173,6 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     else
         return (arrs...) # convert to tuple
     end
-    
 end
 
 """

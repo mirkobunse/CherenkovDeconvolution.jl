@@ -44,7 +44,7 @@ include("methods/dsea.jl")
 # additional helpers
 # 
 
-# do-syntax provider which sets up R and g, then calls the solver (e.g. run or ibu)
+# wrapper for classical algorithms (e.g. run or ibu) to set up R and g, then calling the solver
 function _discrete_deconvolution( solver  :: Function,
                                   x_data  :: AbstractVector{T},
                                   x_train :: AbstractVector{T},

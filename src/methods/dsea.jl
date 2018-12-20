@@ -1,35 +1,21 @@
 """
-    dsea(data, train, y, train_predict[, bins;
-         features = setdiff(names(train), [y]),
-         kwargs...])
+    dsea(data, train, y, train_predict[, bins]; kwargs...)
 
-Deconvolve the `y` distribution in the DataFrame `data`, as learned from the DataFrame
-`train`. This function wraps `dsea(::Matrix, ::Matrix, ::Vector, ::Function)`.
+    dsea(X_data, X_train, y_train, train_predict[, bins]; kwargs...)
 
-The additional keyword argument allows to specify the columns in `data` and `train` to be
-used as the `features`.
-"""
-function dsea(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol,
-              train_predict::Function,
-              bins::AbstractVector{T} = 1:maximum(train[y]);
-              features::AbstractVector{Symbol} = setdiff(names(train), [y]),
-              kwargs...) where T<:Int
-    X_data,  _       = Util.df2Xy(data,  y, features)
-    X_train, y_train = Util.df2Xy(train, y, features)
-    dsea(X_data, X_train, y_train, train_predict, bins; kwargs...)
-end
 
-"""
-    dsea(X_data, X_train, y_train, train_predict[, bins; kwargs...])
+Deconvolve the observed data with *DSEA/DSEA+* trained on the given training set.
 
-Deconvolve the target distribution of `X_data`, as learned from `X_train` and `y_train`.
+The first form of this function works on the two DataFrames `data` and `train`, where `y`
+specifies the target column to be deconvolved - this column has to be present in the
+DataFrame `train`. The second form works on vectors and matrices.
 
-The function `train_predict(X_data, X_train, y_train, w_train) -> Any` trains and
-applies a classifier. All of its arguments but `w_train`, which is updated in each iteration,
-are simply passed through from `dsea`.
-To facilitate classification, `y_train` has to be discrete, i.e., it must contain label
-indices rather than actual values. All expected indices (for cases where `y_train` may not
-contain some of the indices) are optionally provided as `bins`.
+To facilitate classification, `y_train` (or `train[y]` in the first form) must contain label
+indices rather than actual values. All expected indices are optionally provided as `bins`.
+The function object `train_predict(X_data, X_train, y_train, w_train) -> Matrix` trains and
+applies a classifier, obtaining a confidence matrix. All of its arguments but `w_train`,
+which is updated in each iteration, are simply passed through from `dsea`.
+
 
 **Keyword arguments**
 
@@ -59,7 +45,29 @@ contain some of the indices) are optionally provided as `bins`.
 - `return_contributions = false`
   sets, whether or not the contributions of individual examples in `X_data` are returned as
   a tuple together with the deconvolution result.
+- `features = setdiff(names(train), [y])`
+  specifies which columns in `data` and `train` to be used as features - only applicable to
+  the first form of this function.
 """
+dsea( data          :: AbstractDataFrame,
+      train         :: AbstractDataFrame,
+      y             :: Symbol,
+      train_predict :: Function,
+      bins          :: AbstractVector{T} = 1:maximum(train[y]);
+      features      :: AbstractVector{Symbol} = setdiff(names(train), [y]),
+      kwargs... ) where T<:Int =
+  dsea(Util.df2X(data, features),
+       Util.df2Xy(train, y, features)...,
+       train_predict,
+       bins;
+       kwargs...) # DataFrame form
+
+
+# Vector/Matrix form
+# 
+# Here, X_data, X_train, and y_train are only converted to actual Array objects because
+# ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used. The
+# actual implementation is below.
 dsea( X_data        :: AbstractMatrix{TN},
       X_train       :: AbstractMatrix{TN},
       y_train       :: AbstractVector{TI},
@@ -68,6 +76,7 @@ dsea( X_data        :: AbstractMatrix{TN},
       kwargs... ) where {TN<:Number, TI<:Int} =
   _dsea(convert(Matrix, X_data), convert(Matrix, X_train), convert(Vector, y_train),
         train_predict, convert(Vector, bins); kwargs...)
+
 
 function _dsea(X_data::Matrix{TN},
                X_train::Matrix{TN},
@@ -83,10 +92,6 @@ function _dsea(X_data::Matrix{TN},
                inspect::Function = (args...) -> nothing,
                loggingstream::IO = DevNull,
                return_contributions::Bool = false) where {TN<:Number, TI<:Int}
-    # 
-    # Note: X_data, X_train, and y_train are converted to actual Array objects because
-    # ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used.
-    # 
     
     # recode labels and check arguments
     recode_dict, y_train = _recode_indices(bins, y_train)
