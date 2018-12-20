@@ -29,10 +29,10 @@ the three arrays.
 **Caution:** In this form, the keyword argument `f_0` always specifies a pdf prior,
 irrespective of the value of `fit_ratios`.
 """
-ibu( x_data  :: AbstractArray{T, 1},
-     x_train :: AbstractArray{T, 1},
-     y_train :: AbstractArray{T, 1},
-     bins_y  :: AbstractArray{T, 1} = 1:maximum(y_train);
+ibu( x_data  :: AbstractVector{T},
+     x_train :: AbstractVector{T},
+     y_train :: AbstractVector{T},
+     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
      kwargs... ) where T<:Int =
   _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
 

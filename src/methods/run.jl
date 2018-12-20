@@ -20,10 +20,10 @@ one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and
 This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
 """
-run( x_data  :: AbstractArray{T, 1},
-     x_train :: AbstractArray{T, 1},
-     y_train :: AbstractArray{T, 1},
-     bins_y  :: AbstractArray{T, 1} = 1:maximum(y_train);
+run( x_data  :: AbstractVector{T},
+     x_train :: AbstractVector{T},
+     y_train :: AbstractVector{T},
+     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
      kwargs... ) where T<:Int =
   _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
 

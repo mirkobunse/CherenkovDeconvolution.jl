@@ -40,8 +40,8 @@ calling `Util.normalizepdf`.
 Laplace correction means that at least one example is assumed in every bin, so that no bin
 has probability zero. This feature is disabled by default.
 """
-function fit_pdf{T<:Int}(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
-                         normalize::Bool=true, laplace::Bool=false)
+function fit_pdf(x::AbstractVector{T}, bins::AbstractVector{T}=unique(x);
+                 normalize::Bool=true, laplace::Bool=false) where T<:Int
     h = fit(Histogram, x, edges(bins), closed=:left).weights
     if laplace
         h = max.(h, 1)
@@ -59,10 +59,10 @@ integer array `y` to the integer array `x`.
 `R` is normalized by default so that `fit_pdf(x) == R * fit_pdf(y)`.
 If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
 """
-function fit_R{T<:Int}(y::AbstractArray{T,1}, x::AbstractArray{T,1};
-                       bins_y::AbstractArray{T,1}=unique(y),
-                       bins_x::AbstractArray{T,1}=unique(x),
-                       normalize::Bool = true)
+function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
+               bins_y::AbstractVector{T}=unique(y),
+               bins_x::AbstractVector{T}=unique(x),
+               normalize::Bool=true) where T<:Int
     # check arguments (not done by fit(::Histogram, ..))
     if length(y) != length(x)
         throw(ArgumentError("x and y have different dimensions"))
@@ -79,7 +79,7 @@ end
 
 Obtain the edges of an histogram of the integer array `x`.
 """
-function edges{T<:Int}(x::AbstractArray{T,1})
+function edges(x::AbstractVector{T}) where T<:Int
     xmin, xmax = extrema(x)
     return xmin:(xmax+1)
 end
@@ -90,7 +90,7 @@ end
 
 Normalize each column in `R` to make a probability density function.
 """
-function normalizetransfer{T<:Number}(R::AbstractMatrix{T})
+function normalizetransfer(R::AbstractMatrix{T}) where T<:Number
     R_norm = zeros(Float64, size(R))
     for i in 1:size(R, 2)
         R_norm[:,i] = normalizepdf(R[:,i])
@@ -110,10 +110,10 @@ By default, `warn` if coping with NaNs, Infs, or negative values.
 @doc _DOC_NORMALIZEPDF normalizepdf  # map doc string to function
 @doc _DOC_NORMALIZEPDF normalizepdf!
 
-normalizepdf(a::AbstractArray...; kwargs...) =
+normalizepdf(a::AbstractVector...; kwargs...) =
     normalizepdf!(map(ai -> map(Float64, ai), a)...; kwargs...)
 
-function normalizepdf!(a::AbstractArray...; warn::Bool=true)
+function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     
     arrs = [ a... ] # convert tuple to array
     single = length(a) == 1 # normalization of single array?
@@ -196,7 +196,7 @@ polynomial_smoothing(o::Int=2, warn::Bool=true) =
     end
 
 # post-process result of polynomial_smoothing (and other smoothing functions)
-function _repair_smoothing(f::Array{Float64,1}, w::Bool)
+function _repair_smoothing(f::Vector{Float64}, w::Bool)
     if any(f .< 0) # average values of neighbors for all values < 0
         if w # warn about negative values?
             warn("Averaging values of neighbours for negative values returned by smoothing")
@@ -238,7 +238,7 @@ You can set `keepdim = false` to reduce solutions of a previously expanded decon
 problem. `keepdim = true` is useful if you reduce a solution of a non-expanded problem, and
 want to compare the reduced result to non-reduced results.
 """
-function reduce{TN<:Number}(f::Array{TN,1}, factor::Int, keepdim::Bool=false; normalize::Bool=true)
+function reduce(f::Vector{T}, factor::Int, keepdim::Bool=false; normalize::Bool=true) where T<:Number
     
     # combine bins of f
     imax   = length(f) - factor + 1 # maximum edge index
@@ -285,7 +285,7 @@ inspect_reduction(inspect::Function, factor::Int) =
 
 Symmetric Chi Square distance between histograms `a` and `b`.
 """
-function chi2s{T<:Number}(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normalize = true)
+function chi2s(a::AbstractVector{T}, b::AbstractVector{T}, normalize::Bool=true) where T<:Number
     if normalize
         a, b = normalizepdf(a, b, warn=false)
     end
@@ -301,7 +301,7 @@ end
 
 Convert the DataFrame `df` to a tuple of the feature matrix `X` and the target column `y`.
 """
-df2Xy(df::AbstractDataFrame, y::Symbol, features::Array{Symbol,1}=setdiff(names(df), [y])) =
+df2Xy(df::AbstractDataFrame, y::Symbol, features::Vector{Symbol}=setdiff(names(df), [y])) =
     df2X(df, features), convert(Array, df[y])
 
 """
@@ -309,7 +309,8 @@ df2Xy(df::AbstractDataFrame, y::Symbol, features::Array{Symbol,1}=setdiff(names(
 
 Convert the DataFrame `df` to a feature matrix `X`.
 """
-df2X(df::AbstractDataFrame, features::AbstractArray{Symbol,1}=names(df)) = convert(Matrix, df[:, features])
+df2X(df::AbstractDataFrame, features::AbstractVector{Symbol}=names(df)) =
+    convert(Matrix, df[:, features])
 
 
 end
