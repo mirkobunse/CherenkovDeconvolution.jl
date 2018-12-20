@@ -49,13 +49,13 @@ response matrix `R`.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 """
-function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
-                        n_df::Number = size(R, 2),
-                        K::Int = 100,
-                        epsilon::Float64 = 1e-6,
-                        inspect::Function = (args...) -> nothing,
-                        loggingstream::IO = DevNull,
-                        kwargs...)
+function run(R::Matrix{TR}, g::Vector{Tg};
+             n_df::Number = size(R, 2),
+             K::Int = 100,
+             epsilon::Float64 = 1e-6,
+             inspect::Function = (args...) -> nothing,
+             loggingstream::IO = DevNull,
+             kwargs...) where {TR<:Number, Tg<:Number}
     
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
@@ -98,7 +98,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
             rethrow(err)
         end
     end
-    inspect(Util.normalizepdf(f, warn=false), 1, NaN, NaN)
+    inspect(f, 1, NaN, NaN)
     
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
@@ -166,7 +166,7 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         l_now = l(f) + _C_l(tau, C)(f)
         ldiff = l_prev - l_now
         info(loggingstream, "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)")
-        inspect(Util.normalizepdf(f, warn=false), k, ldiff, tau)
+        inspect(f, k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -176,12 +176,12 @@ function run{T<:Number}(R::Matrix{Float64}, g::Array{T,1};
         l_prev = l_now
         
     end
-    return Util.normalizepdf(f, warn=false)
+    return f
     
 end
 
 # Brute-force search of a tau satisfying the n_df relation
-function _tau(n_df::Number, eigvals_C::Array{Float64,1})
+function _tau(n_df::Number, eigvals_C::Vector{Float64})
     res = _tau(n_df, tau -> sum([ 1/(1 + tau*v) for v in eigvals_C ])) # recursive subroutine
     return res[1] # final tau
 end
@@ -209,19 +209,19 @@ end
 
 
 # objective function: negative log-likelihood
-_maxl_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_maxl_l(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> sum(begin
         fj = dot(R[j,:], f)
         fj - g[j]*real(log(complex(fj)))
     end for j in 1:length(g))
 
 # gradient of objective
-_maxl_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_maxl_g(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
            for i in 1:length(f) ]
 
 # hessian of objective
-_maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_maxl_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
@@ -234,16 +234,16 @@ _maxl_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
 
 
 # objective function: least squares
-_lsq_l{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_lsq_l(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> sum([ (g[j] - dot(R[j,:], f))^2 / g[j] for j in 1:length(g) ])/2
 
 # gradient of objective
-_lsq_g{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_lsq_g(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> [ sum([ -R[j,i] * (g[j] - dot(R[j,:], f)) / g[j] for j in 1:length(g) ])
            for i in 1:length(f) ]
 
 # hessian of objective
-_lsq_H{T<:Number}(R::Matrix{Float64}, g::AbstractArray{T,1}) =
+_lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)

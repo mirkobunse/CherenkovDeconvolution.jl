@@ -25,6 +25,9 @@ provided as `bins_y`.
 
 This function wraps `ibu(R, g; kwargs...)`, constructing `R` and `g` from the examples in
 the three arrays.
+
+**Caution:** In this form, the keyword argument `f_0` always specifies a pdf prior,
+irrespective of the value of `fit_ratios`.
 """
 ibu( x_data  :: AbstractArray{T, 1},
      x_train :: AbstractArray{T, 1},
@@ -52,29 +55,32 @@ density function `g`.
 - `epsilon = 0.0`
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
+- `fit_ratios = false`
+  determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
+  `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
+  According to this setting, `f_0` specifies a ratio prior or a pdf prior.
 - `inspect = nothing`
   is a function `(f_k::Array, k::Int, chi2s::Float64) -> Any` optionally called in every
   iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 """
-function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
-                        f_0::Array{Float64, 1} = Float64[],
-                        smoothing::Function = Base.identity,
-                        K::Int = 3,
-                        epsilon::Float64 = 0.0,
-                        inspect::Function = (args...) -> nothing,
-                        loggingstream::IO = DevNull,
-                        kwargs...)
+function ibu(R::Matrix{TR}, g::Vector{Tg};
+             f_0::Vector{Float64} = Float64[],
+             smoothing::Function = Base.identity,
+             K::Int = 3,
+             epsilon::Float64 = 0.0,
+             fit_ratios::Bool = false,
+             inspect::Function = (args...) -> nothing,
+             loggingstream::IO = DevNull) where {TR<:Number, Tg<:Number}
     
     # check arguments
     if size(R, 1) != length(g)
         throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
     end
-    f_0 = _check_prior(f_0, size(R, 2))
     
     # initial estimate
-    f = Util.normalizepdf(f_0, warn=false)
+    f = _check_prior(f_0, size(R, 2), !fit_ratios) # do not normalize if ratios are fitted
     inspect(f, 0, NaN) # inspect prior
     
     # iterative Bayesian deconvolution
@@ -86,7 +92,10 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
         # = = = = = = = = = = = = = = = = = = =
         
         # === apply Bayes' rule ===
-        f = Util.normalizepdf(_ibu_reverse_transfer(R, f_prev_smooth) * g, warn=false)
+        f = _ibu_reverse_transfer(R, f_prev_smooth) * g
+        if !fit_ratios
+            f = Util.normalizepdf(f, warn=false)
+        end
         # = = = = = = = = = = = = =
         
         # monitor progress
@@ -107,8 +116,8 @@ function ibu{T<:Number}(R::Matrix{Float64}, g::Array{T, 1};
 end
 
 # reverse the transfer with Bayes' rule, given the transfer matrix R and the prior f_0
-function _ibu_reverse_transfer(R::Matrix{Float64}, f_0::Array{Float64, 1})
-    B = zeros(R')
+function _ibu_reverse_transfer(R::Matrix{T}, f_0::Vector{Float64}) where T<:Number
+    B = zeros(Float64, size(R'))
     for j in 1:size(R, 1)
         B[:, j] = R[j, :] .* f_0 ./ dot(R[j, :], f_0)
     end
