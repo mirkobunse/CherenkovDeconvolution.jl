@@ -120,29 +120,29 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     # check for NaNs and Infs
     nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
     if sum(nans) > 0
-        if warn
-            Base.warn("Setting NaNs and Infs ",
-                      single ? "" : "in $(sum(nans)) arrays ",
-                      "to zero")
-        end
         for arr in map(i -> arrs[i], find(nans))
             arr[isnan.(arr)] = 0
             arr[abs.(arr) .== Inf] = 0
             arr[:] = abs.(arr) # float arrays can have negative zeros leading to more warnings
+        end
+        if warn
+            Base.warn("Normalization set NaNs and Infs",
+                      single ? "" : " in $(sum(nans)) arrays",
+                      " to zero")
         end
     end
     
     # check for negative values
     negs = [ any(arr .< 0) for arr in arrs ]
     if sum(negs) > 0
-        if warn
-            Base.warn("Setting negative values ",
-                      single ? "" : "in $(sum(negs)) arrays ",
-                      "to zero")
-        end
         for arr in map(i -> arrs[i], find(negs))
             arr[arr .< 0] = 0
             arr[:] = abs.(arr)
+        end
+        if warn
+            Base.warn("Normalization set negative values",
+                      single ? "" : " in $(sum(negs)) arrays",
+                      " to zero")
         end
     end
     
@@ -150,14 +150,14 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     sums = map(sum, arrs)
     zers = map(iszero, sums)
     if sum(zers) > 0
-        if warn
-            Base.warn(single ? "zero vector " : "$(sum(zers)) zero vectors ",
-                      "replaced by uniform distribution",
-                      single ? "" : "s")
-        end
         for arr in map(i -> arrs[i], find(zers))
             idim   = length(arr)
             arr[:] = ones(idim) ./ idim
+        end
+        if warn
+            Base.warn("Normalization replaced",
+                      single ? " a zero vector" : " $(sum(zers)) zero vectors",
+                      " by a uniform density")
         end
     end
     
@@ -194,11 +194,8 @@ polynomial_smoothing(o::Int=2, warn::Bool=true) =
     end
 
 # post-process result of polynomial_smoothing (and other smoothing functions)
-function _repair_smoothing(f::Vector{Float64}, w::Bool)
+function _repair_smoothing(f::Vector{Float64}, warn::Bool)
     if any(f .< 0) # average values of neighbors for all values < 0
-        if w # warn about negative values?
-            warn("Averaging values of neighbours for negative values returned by smoothing")
-        end
         for i in find(f .< 0)
             f[i] = if i == 1
                        f[i+1] / 2
@@ -208,8 +205,11 @@ function _repair_smoothing(f::Vector{Float64}, w::Bool)
                        (f[i+1] + f[i-1]) / 4 # half the average [dagostini2010improved]
                    end
         end
+        if warn # warn about negative values?
+            Base.warn("Smoothing averaged the values of neighbours to circumvent negative values")
+        end
     end
-    return normalizepdf(f, warn=false)
+    return normalizepdf(f, warn=warn)
 end
 
 
