@@ -36,6 +36,14 @@ indices in `y_train` are optionally provided as `bins`.
   called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
+- `fit_ratios = false`
+  determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
+  `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
+
+
+**Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
+ratio prior or a pdf prior, but only in the third form. In the second form, `f_0` always
+specifies a pdf prior.
 """
 run( data   :: AbstractDataFrame,
      train  :: AbstractDataFrame,
