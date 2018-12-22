@@ -35,6 +35,7 @@ include("sklearn.jl")
 
 
 # deconvolution methods
+include("methods/svd.jl")
 include("methods/run.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")

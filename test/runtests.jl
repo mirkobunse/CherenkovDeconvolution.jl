@@ -49,6 +49,7 @@ end
 
 # methods
 include("methods/dsea.jl")
+include("methods/svd.jl")
 include("methods/run.jl")
 include("methods/ibu.jl")
 
