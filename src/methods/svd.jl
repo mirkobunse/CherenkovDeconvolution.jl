@@ -66,8 +66,7 @@ svd( x_data  :: AbstractVector{T},
 
 function svd(R::Matrix{TR}, g::Vector{Tg};
              effective_rank::Int = -1,
-             assume_poisson::Bool = true,
-             B::Matrix{TB} = assume_poisson ? _svd_B_Poisson(g) : eye(eltype(g), length(g)),
+             cov::Symbol = :Poisson,
              epsilon_C::Float64 = 1e-3,
              fit_ratios::Bool = false,
              kwargs...) where {TR<:Number, Tg<:Number, TB<:Number}
@@ -83,6 +82,19 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
         effective_rank = size(R, 2)
     end
     inv_C = inv(_svd_C(size(R, 2), epsilon_C))
+    
+    # variance-covariance matrix
+    B = if cov == :multinomial && eltype(g) <: Real
+            Util.cov_multinomial(g, N) # density version
+        elseif cov == :multinomial
+            Util.cov_multinomial(g) # counts version
+        elseif cov == :Poisson && eltype(g) <: Real
+            Util.cov_Poisson(g, N) # density version
+        elseif cov == :Poisson
+            Util.cov_Poisson(g) # counts version
+        else
+            error("cov must be either :multinomial or :Poisson")
+        end
     
     # 
     # Re-scaling and rotation steps 1-5 (without step 3) [hoecker1995svd]

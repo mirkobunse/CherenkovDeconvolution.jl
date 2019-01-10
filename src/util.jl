@@ -175,6 +175,41 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     end
 end
 
+
+_DOC_COV = """
+    cov_Poisson(g, N)
+    cov_multinomial(g, N)
+    
+    cov_Poisson(g)
+    cov_multinomial(g)
+
+Estimate the variance-covariance matrix of the bins with an observed `g`. In the first form,
+`g` is a density and `N` is the total number of observations. In the second form, `g`
+contains absolute counts, so that `N = sum(g)`.
+
+The method `cov_Poisson` assumes a Poisson distribution in each of the bins.
+`cov_multinomial`, assumes a common multinomial distribution.
+"""
+@doc _DOC_COV cov_Poisson
+@doc _DOC_COV cov_multinomial
+
+cov_Poisson(g::Vector{T}, N::Integer) where T<:Real =
+    cov_Poisson(round.(Int64, g.*N))
+
+cov_Poisson(g::Vector{T}) where T<:Integer = diagm(g) # Integer version, variance = mean
+
+function cov_multinomial(g::Vector{T}, N::Integer) where T<:Real
+    cov = zeros(length(g), length(g))
+    for i in 1:size(cov, 1), j in 1:size(cov, 2)
+        cov[i, j] = (i==j) ? N*g[i]*(1-g[i]) : -N*g[i]*g[j]
+    end
+    return cov
+end
+
+cov_multinomial(g::Vector{T}) where T<:Integer =
+    cov_multinomial(Util.normalizepdf(g), sum(g)) # Integer version
+
+
 """
     polynomial_smoothing([o = 2, warn = true])
 
