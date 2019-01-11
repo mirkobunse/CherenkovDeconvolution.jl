@@ -37,7 +37,7 @@ function ibu(x_data::AbstractArray{T, 1},
     # recode indices
     recode_dict, y_train = _recode_indices(bins, y_train)
     _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
-    kwargs_dict = Dict(kwargs)
+    kwargs_dict = Dict{Symbol, Any}(kwargs)
     if haskey(kwargs_dict, :f_0)
         kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
     end

@@ -50,4 +50,5 @@ include("methods/ibu.jl")
 
 # check that no error occurs in example notebooks
 @nbinclude "../example/getting-started.ipynb"
+@nbinclude "../example/inspection.ipynb"
 
