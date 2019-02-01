@@ -69,7 +69,7 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
              cov::Symbol = :Poisson,
              epsilon_C::Float64 = 1e-3,
              fit_ratios::Bool = false,
-             kwargs...) where {TR<:Number, Tg<:Number, TB<:Number}
+             kwargs...) where {TR<:Number, Tg<:Number}
     
     # check arguments
     if size(R, 1) != length(g)
