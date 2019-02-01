@@ -45,9 +45,10 @@ weight can be specified when calling `ScikitLearn.fit!`. Usually, its value does
 be changed. However, if for example a scikit-learn `Pipeline` object is the `classifier`,
 the name of the step has to be provided like `:stepname__sample_weight`.
 """
-function train_and_predict_proba(classifier, sample_weight::Symbol=:sample_weight)
-    return (X_data::Matrix, X_train::Matrix, y_train::Vector, w_train::Vector) -> begin
-        ScikitLearn.fit!(classifier, X_train, y_train; (sample_weight, w_train))
+function train_and_predict_proba(classifier, sample_weight::Union{Symbol,Void}=:sample_weight)
+    return (X_data::Array, X_train::Array, y_train::Vector, w_train::Vector) -> begin
+        kwargs_fit = sample_weight == nothing ? [] : [ (sample_weight, Util.normalizepdf(w_train)) ]
+        ScikitLearn.fit!(classifier, X_train, y_train; kwargs_fit...)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end

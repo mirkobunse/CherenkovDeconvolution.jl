@@ -68,21 +68,21 @@ dsea( data          :: AbstractDataFrame,
 # Here, X_data, X_train, and y_train are only converted to actual Array objects because
 # ScikitLearn.jl goes mad when some of the other sub-types of AbstractArray are used. The
 # actual implementation is below.
-dsea( X_data        :: AbstractMatrix{TN},
-      X_train       :: AbstractMatrix{TN},
-      y_train       :: AbstractVector{TI},
+dsea( X_data        :: AbstractArray,
+      X_train       :: AbstractArray,
+      y_train       :: AbstractVector{T},
       train_predict :: Function,
-      bins          :: AbstractVector{TI} = 1:maximum(y_train);
-      kwargs... ) where {TN<:Number, TI<:Int} =
-  _dsea(convert(Matrix, X_data), convert(Matrix, X_train), convert(Vector, y_train),
+      bins          :: AbstractVector{T} = 1:maximum(y_train);
+      kwargs... ) where T<:Int =
+  _dsea(convert(Array, X_data), convert(Array, X_train), convert(Vector, y_train),
         train_predict, convert(Vector, bins); kwargs...)
 
 
-function _dsea(X_data::Matrix{TN},
-               X_train::Matrix{TN},
-               y_train::Vector{TI},
+function _dsea(X_data::Array,
+               X_train::Array,
+               y_train::Vector{T},
                train_predict::Function,
-               bins::Vector{TI} = 1:maximum(y_train);
+               bins::Vector{T} = 1:maximum(y_train);
                f_0::Vector{Float64} = Float64[],
                fixweighting::Bool = true,
                alpha::Union{Float64, Function} = 1.0,
@@ -91,7 +91,7 @@ function _dsea(X_data::Matrix{TN},
                epsilon::Float64 = 0.0,
                inspect::Function = (args...) -> nothing,
                loggingstream::IO = DevNull,
-               return_contributions::Bool = false) where {TN<:Number, TI<:Int}
+               return_contributions::Bool = false) where T<:Int
     
     # recode labels and check arguments
     recode_dict, y_train = _recode_indices(bins, y_train)
