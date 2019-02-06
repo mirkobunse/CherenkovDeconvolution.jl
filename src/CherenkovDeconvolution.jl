@@ -125,16 +125,19 @@ function _recode_indices(bins::AbstractVector{T}, inds::AbstractVector{T}...) wh
 end
 
 # recode a deconvolution result by reverting the initial recoding of the data
-function _recode_result(f::Vector{Float64}, recode_dict::Dict{T, T}) where T<:Int
-    r = zeros(Float64, maximum(values(recode_dict)))
+_recode_result(f::Vector{Float64}, recode_dict::Dict{T, T}) where T<:Int =
+    _recode_result(convert(Matrix, f'), recode_dict)[:] # treat f like a 1xN matrix
+
+# like above but for probability matrices (used if DSEA returns contributions)
+function _recode_result(proba::Matrix{Float64}, recode_dict::Dict{T, T}) where T<:Int
+    r = zeros(Float64, size(proba, 1), maximum(values(recode_dict)))
     for (k, v) in recode_dict
         if k != -1
-            r[v] = f[k]
+            r[:, v] = proba[:, k]
         end # else, the key was just included to store the maximum value
     end
     return r
 end
-
 
 end
 

@@ -144,9 +144,11 @@ function _dsea(X_data::Array,
     end
     
     f_rec = _recode_result(f, recode_dict) # revert recoding of labels
-    return return_contributions ? (f_rec, proba) : f_rec # result may contain contributions
-    
-    # TODO proba still has to be recoded, too!
+    if !return_contributions # the default case
+        return f_rec
+    else
+        return f_rec, _recode_result(proba, recode_dict) # return tuple
+    end
     
 end
 
