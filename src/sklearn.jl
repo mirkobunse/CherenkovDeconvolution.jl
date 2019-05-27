@@ -102,7 +102,7 @@ function Discretizers.encode(d::TreeDiscretizer{T}, X_data::AbstractMatrix{T}) w
     return map(i -> d.indexmap[i], convert(Array{Int64,1}, x_data))
 end
 
-_apply(model::PyObject, X) = pycall(model[:apply], PyArray, X) # return the leaf indices of X
+_apply(model::PyObject, X) = pycall(model.apply, PyArray, X) # return the leaf indices of X
 
 bins(d::TreeDiscretizer) = sort(collect(values(d.indexmap)))
 
