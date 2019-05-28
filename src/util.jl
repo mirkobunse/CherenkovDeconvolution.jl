@@ -40,7 +40,7 @@ calling `Util.normalizepdf`.
 Laplace correction means that at least one example is assumed in every bin, so that no bin
 has probability zero. This feature is disabled by default.
 """
-function fit_pdf(x::AbstractArray{T,1}, bins::AbstractArray{T,1}=unique(x);
+function fit_pdf(x::AbstractVector{T}, bins::AbstractVector{T}=unique(x);
                  normalize::Bool=true, laplace::Bool=false) where T<:Int
     h = fit(Histogram, x, edges(bins), closed=:left).weights
     if laplace
@@ -59,10 +59,10 @@ integer array `y` to the integer array `x`.
 `R` is normalized by default so that `fit_pdf(x) == R * fit_pdf(y)`.
 If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
 """
-function fit_R(y::AbstractArray{T,1}, x::AbstractArray{T,1};
-               bins_y::AbstractArray{T,1}=unique(y),
-               bins_x::AbstractArray{T,1}=unique(x),
-               normalize::Bool = true) where T<:Int
+function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
+               bins_y::AbstractVector{T}=unique(y),
+               bins_x::AbstractVector{T}=unique(x),
+               normalize::Bool=true) where T<:Int
     # check arguments (not done by fit(::Histogram, ..))
     if length(y) != length(x)
         throw(ArgumentError("x and y have different dimensions"))
@@ -79,7 +79,7 @@ end
 
 Obtain the edges of an histogram of the integer array `x`.
 """
-function edges(x::AbstractArray{T,1}) where T<:Int
+function edges(x::AbstractVector{T}) where T<:Int
     xmin, xmax = extrema(x)
     return xmin:(xmax+1)
 end
@@ -99,47 +99,50 @@ function normalizetransfer(R::AbstractMatrix{T}) where T<:Number
 end
 
 
-"""
-    normalizepdf(array...)
-    normalizepdf!(array...)
+_DOC_NORMALIZEPDF = """
+    normalizepdf(array...; warn=true)
+    normalizepdf!(array...; warn=true)
 
 Normalize each array to a discrete probability density function.
-"""
-normalizepdf(a::AbstractArray...) = normalizepdf!(map(ai -> map(Float64, ai), a)...)
 
+By default, `warn` if coping with NaNs, Infs, or negative values.
 """
-    normalizepdf(array...)
-    normalizepdf!(array...)
+@doc _DOC_NORMALIZEPDF normalizepdf  # map doc string to function
+@doc _DOC_NORMALIZEPDF normalizepdf!
 
-Normalize each array to a discrete probability density function.
-"""
-function normalizepdf!(a::AbstractArray...)
-    
+normalizepdf(a::AbstractVector...; kwargs...) =
+    normalizepdf!(map(ai -> map(Float64, ai), a)...; kwargs...)
+
+function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     arrs = [ a... ] # convert tuple to array
     single = length(a) == 1 # normalization of single array?
     
     # check for NaNs and Infs
     nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
     if sum(nans) > 0
-        if _WARN_NORMALIZE
-            @warn "Setting NaNs and Infs " * (single ? "" : "in $(sum(nans)) arrays ") * "to zero"
-        end
         for arr in map(i -> arrs[i], findall(nans))
             arr[isnan.(arr)] .= 0
             arr[abs.(arr) .== Inf] .= 0
             arr[:] .= abs.(arr) # float arrays can have negative zeros leading to more warnings
+        end
+        if warn
+            Base.warn("Normalization set NaNs and Infs",
+                      single ? "" : " in $(sum(nans)) arrays",
+                      " to zero")
         end
     end
     
     # check for negative values
     negs = [ any(arr .< 0) for arr in arrs ]
     if sum(negs) > 0
-        if _WARN_NORMALIZE
-            @warn "Setting negative values " * (single ? "" : "in $(sum(negs)) arrays ") * "to zero"
-        end
         for arr in map(i -> arrs[i], findall(negs))
             arr[arr .< 0] .= 0
             arr[:] .= abs.(arr)
+        end
+        if warn
+            Base.warn("Normalization set negative values",
+                      single ? "" : " in $(sum(negs)) arrays",
+                      " to zero")
         end
     end
     
@@ -147,12 +150,14 @@ function normalizepdf!(a::AbstractArray...)
     sums = map(sum, arrs)
     zers = map(iszero, sums)
     if sum(zers) > 0
-        if _WARN_NORMALIZE
-            @warn (single ? "zero vector " : "$(sum(zers)) zero vectors ") * "replaced by uniform distribution" * (single ? "" : "s")
-        end
         for arr in map(i -> arrs[i], findall(zers))
             idim = length(arr)
             arr[:] .= ones(idim) ./ idim
+        end
+        if warn
+            Base.warn("Normalization replaced",
+                      single ? " a zero vector" : " $(sum(zers)) zero vectors",
+                      " by a uniform density")
         end
     end
     
@@ -168,9 +173,42 @@ function normalizepdf!(a::AbstractArray...)
     else
         return (arrs...,) # convert to tuple
     end
-    
 end
-_WARN_NORMALIZE = true
+
+
+_DOC_COV = """
+    cov_Poisson(g, N)
+    cov_multinomial(g, N)
+    
+    cov_Poisson(g)
+    cov_multinomial(g)
+
+Estimate the variance-covariance matrix of the bins with an observed `g`. In the first form,
+`g` is a density and `N` is the total number of observations. In the second form, `g`
+contains absolute counts, so that `N = sum(g)`.
+
+The method `cov_Poisson` assumes a Poisson distribution in each of the bins.
+`cov_multinomial`, assumes a common multinomial distribution.
+"""
+@doc _DOC_COV cov_Poisson
+@doc _DOC_COV cov_multinomial
+
+cov_Poisson(g::Vector{T}, N::Integer) where T<:Real =
+    cov_Poisson(round.(Int64, g.*N))
+
+cov_Poisson(g::Vector{T}) where T<:Integer = diagm(g) # Integer version, variance = mean
+
+function cov_multinomial(g::Vector{T}, N::Integer) where T<:Real
+    cov = zeros(length(g), length(g))
+    for i in 1:size(cov, 1), j in 1:size(cov, 2)
+        cov[i, j] = (i==j) ? N*g[i]*(1-g[i]) : -N*g[i]*g[j]
+    end
+    return cov
+end
+
+cov_multinomial(g::Vector{T}) where T<:Integer =
+    cov_multinomial(Util.normalizepdf(g), sum(g)) # Integer version
+
 
 """
     polynomial_smoothing([o = 2, warn = true])
@@ -191,11 +229,8 @@ polynomial_smoothing(o::Int=2, warn::Bool=true) =
     end
 
 # post-process result of polynomial_smoothing (and other smoothing functions)
-function _repair_smoothing(f::Array{Float64,1}, w::Bool)
+function _repair_smoothing(f::Vector{Float64}, warn::Bool)
     if any(f .< 0) # average values of neighbors for all values < 0
-        if w # warn about negative values?
-            @warn "Averaging values of neighbours for negative values returned by smoothing"
-        end
         for i in findall(f .< 0)
             f[i] = if i == 1
                        f[i+1] / 2
@@ -205,8 +240,11 @@ function _repair_smoothing(f::Array{Float64,1}, w::Bool)
                        (f[i+1] + f[i-1]) / 4 # half the average [dagostini2010improved]
                    end
         end
+        if warn # warn about negative values?
+            Base.warn("Smoothing averaged the values of neighbours to circumvent negative values")
+        end
     end
-    return normalizepdf(f)
+    return normalizepdf(f, warn=warn)
 end
 
 
@@ -233,8 +271,8 @@ You can set `keepdim = false` to reduce solutions of a previously expanded decon
 problem. `keepdim = true` is useful if you reduce a solution of a non-expanded problem, and
 want to compare the reduced result to non-reduced results.
 """
-function reduce(f::Array{TN,1}, factor::Int, keepdim::Bool=false;
-                normalize::Bool=true) where TN<:Number
+function reduce(f::Vector{T}, factor::Int, keepdim::Bool=false;
+	            normalize::Bool=true) where T<:Number
     
     # combine bins of f
     imax   = length(f) - factor + 1 # maximum edge index
@@ -246,7 +284,7 @@ function reduce(f::Array{TN,1}, factor::Int, keepdim::Bool=false;
     
     # keep input dimension, if desired
     if !keepdim
-        return normalize ? normalizepdf(f_red) : f_red
+        return normalize ? normalizepdf(f_red, warn=false) : f_red
     else
         f_exp = vcat(map(v -> repeat([v], factor), f_red)...)[1:length(f)] # re-expand
         return normalize ? normalizepdf(f_exp) : f_exp
@@ -281,9 +319,9 @@ inspect_reduction(inspect::Function, factor::Int) =
 
 Symmetric Chi Square distance between histograms `a` and `b`.
 """
-function chi2s(a::AbstractArray{T,1}, b::AbstractArray{T,1}, normalize = true) where T<:Number
+function chi2s(a::AbstractVector{T}, b::AbstractVector{T}, normalize::Bool=true) where T<:Number
     if normalize
-        a, b = normalizepdf(a, b)
+        a, b = normalizepdf(a, b, warn=false)
     end
     selection = .|(a .> 0, b .> 0) # limit computation to denominators > 0
     a = a[selection]
@@ -297,7 +335,7 @@ end
 
 Convert the DataFrame `df` to a tuple of the feature matrix `X` and the target column `y`.
 """
-df2Xy(df::AbstractDataFrame, y::Symbol, features::Array{Symbol,1}=setdiff(names(df), [y])) =
+df2Xy(df::AbstractDataFrame, y::Symbol, features::Vector{Symbol}=setdiff(names(df), [y])) =
     df2X(df, features), convert(Array, df[y])
 
 """
@@ -305,7 +343,8 @@ df2Xy(df::AbstractDataFrame, y::Symbol, features::Array{Symbol,1}=setdiff(names(
 
 Convert the DataFrame `df` to a feature matrix `X`.
 """
-df2X(df::AbstractDataFrame, features::AbstractArray{Symbol,1}=names(df)) = convert(Matrix, df[:, features])
+df2X(df::AbstractDataFrame, features::AbstractVector{Symbol}=names(df)) =
+    convert(Matrix, df[:, features])
 
 
 end

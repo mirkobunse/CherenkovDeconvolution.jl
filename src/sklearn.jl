@@ -26,6 +26,8 @@ using DataFrames, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall
 import CherenkovDeconvolution.Util
 
+@sk_import tree    : DecisionTreeClassifier
+@sk_import cluster : KMeans
 
 export ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
 export train_and_predict_proba, encode, bins
@@ -41,22 +43,28 @@ weight can be specified when calling `ScikitLearn.fit!`. Usually, its value does
 be changed. However, if for example a scikit-learn `Pipeline` object is the `classifier`,
 the name of the step has to be provided like `:stepname__sample_weight`.
 """
-function train_and_predict_proba(classifier, sample_weight::Symbol=:sample_weight)
-    return (X_data::Matrix, X_train::Matrix, y_train::Array, w_train::Array) -> begin
-        ScikitLearn.fit!(classifier, X_train, y_train; sample_weight => w_train)
+function train_and_predict_proba(classifier, sample_weight::Union{Symbol,Nothing}=:sample_weight)
+    return (X_data::Array, X_train::Array, y_train::Vector, w_train::Vector) -> begin
+        kwargs_fit = sample_weight == nothing ? [] : [ (sample_weight, Util.normalizepdf(w_train)) ]
+        ScikitLearn.fit!(classifier, X_train, y_train; kwargs_fit...)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end
 
 
-abstract type ClusterDiscretizer{T<:Number} <: AbstractDiscretizer{Array{T,1},Int} end
-
 """
-    bins(d::ClusterDiscretizer)
+    abstract type ClusterDiscretizer <: AbstractDiscretizer
+
+Supertype of any clustering-based discretizer mapping from an n-dimensional space to a
+single cluster index dimension.
+"""
+abstract type ClusterDiscretizer{T<:Number} <: AbstractDiscretizer{Vector{T}, Int} end
+
+@doc """
+    bins(d::T) where T <: ClusterDiscretizer
 
 Return the bin indices of `d`.
-"""
-bins(d::ClusterDiscretizer) = nothing # overwritten by sub-types
+""" bins # overwritten by sub-types
 
 
 struct TreeDiscretizer{T<:Number} <: ClusterDiscretizer{T}
@@ -71,12 +79,12 @@ A decision tree with at most `J` leaves is trained on `X_train` to predict `y_tr
 tree is used to discretize multidimensional data with `encode()`.
 """
 function TreeDiscretizer(X_train::AbstractMatrix{TN},
-                         y_train::AbstractArray{TI,1},
+                         y_train::AbstractVector{TI},
                          J::TI, criterion::String="gini";
-                         seed::Integer=rand(UInt32)) where {TN<:Number,TI<:Int}
+                         seed::Integer=rand(UInt32)) where {TN<:Number, TI<:Int}
     # conversion required for ScikitLearn
-    X_train_c = convert(Array, X_train)
-    y_train_c = convert(Array, y_train)
+    X_train_c = convert(Matrix, X_train)
+    y_train_c = convert(Vector, y_train)
     
     # train classifier
     @sk_import tree : DecisionTreeClassifier
@@ -92,14 +100,13 @@ function TreeDiscretizer(X_train::AbstractMatrix{TN},
 end
 
 """
-    encode(d, data)
+    encode(d::TreeDiscretizer, X_data)
 
-Discretize the `data` by using the leaf indices in the decision tree of `d` as discrete
-values. `d` is obtained from `TreeDiscretizer()`.
+Discretize `X_data` using the leaf indices in the decision tree of `d` as discrete values.
 """
 function Discretizers.encode(d::TreeDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number
-    x_data = _apply(d.model, convert(Array, X_data))
-    return map(i -> d.indexmap[i], convert(Array{Int64,1}, x_data))
+    x_data = _apply(d.model, convert(Matrix, X_data))
+    return map(i -> d.indexmap[i], convert(Vector{Int64}, x_data))
 end
 
 _apply(model::PyObject, X) = pycall(model.apply, PyArray, X) # return the leaf indices of X
@@ -118,21 +125,19 @@ end
 Unsupervised clustering using all columns in `train`, finding `k` clusters.
 It can be used to `discretize()` multidimensional data.
 """
-function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::Integer=rand(UInt32)) where T<:Number
-    @sk_import cluster : KMeans
-    clustering = KMeans(n_clusters=k, n_init=1, random_state=convert(UInt32, seed))
-    ScikitLearn.fit!(clustering, convert(Array, X_train))
+function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::UInt32=rand(UInt32)) where T<:Number
+    clustering = KMeans(n_clusters=k, n_init=1, random_state=seed)
+    ScikitLearn.fit!(clustering, convert(Matrix, X_train))
     return KMeansDiscretizer{T}(clustering, k)
 end
 
 """
-    encode(d, data)
+    encode(d::KMeansDiscretizer, X_data)
 
-Discretize the `data` by using its cluster indices in the clustering `d` as discrete
-values. `d` is obtained from `KMeansDiscretizer()`.
+Discretize `X_data` using the cluster indices of `d` as discrete values.
 """
-Discretizers.encode(d::KMeansDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number =
-    convert(Array{Int64, 1}, ScikitLearn.predict(d.model, convert(Matrix, X_data))) .+ 1
+Discretizers.encode(d::KMeansDiscretizer{T}, X_data::Matrix{T}) where T<:Number =
+    convert(Vector{Int64}, ScikitLearn.predict(d.model, X_data)) .+ 1
 
 bins(d::KMeansDiscretizer) = collect(1:d.k)
 

@@ -36,6 +36,7 @@ include("sklearn.jl")
 
 
 # deconvolution methods
+include("methods/svd.jl")
 include("methods/run.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
@@ -45,22 +46,72 @@ include("methods/dsea.jl")
 # additional helpers
 # 
 
+# wrapper for classical algorithms (e.g. run or ibu) to set up R and g, then calling the solver
+function _discrete_deconvolution( solver  :: Function,
+                                  x_data  :: AbstractVector{T},
+                                  x_train :: AbstractVector{T},
+                                  y_train :: AbstractVector{T},
+                                  bins_y  :: AbstractVector{T},
+                                  kw_dict :: Dict{Symbol, Any};
+                                  normalize_g::Bool=true ) where T<:Int
+    # recode indices
+    recode_dict, y_train = _recode_indices(bins_y, y_train)
+    _, x_data, x_train   = _recode_indices(1:maximum(vcat(x_data, x_train)), x_data, x_train)
+    
+    # prepare the arguments for the solver
+    bins_x = 1:maximum(vcat(x_data, x_train)) # ensure same bins in R and g
+    fit_ratios = get(kw_dict, :fit_ratios, false) # ratios fitted instead of pdfs?
+    R = Util.fit_R(y_train, x_train, bins_x = bins_x, normalize = !fit_ratios)
+    g = Util.fit_pdf(x_data, bins_x, normalize = normalize_g) # absolute counts instead of pdf
+    
+    # recode the prior (if specified)
+    if haskey(kw_dict, :f_0)
+        f_0 = _check_prior(kw_dict[:f_0], recode_dict) # also normalizes f_0
+        if fit_ratios
+            f_0 = f_0 ./ Util.fit_pdf(y_train) # pdf prior -> ratio prior
+        end
+        kw_dict[:f_0] = f_0 # update
+    elseif fit_ratios
+        kw_dict[:f_0] = ones(size(R, 2)) ./ Util.fit_pdf(y_train) # uniform prior instead of f_train
+    end
+    
+    # inspect with original coding of labels
+    if haskey(kw_dict, :inspect)
+        inspect = kw_dict[:inspect] # inspection function
+        kw_dict[:inspect] = (f_est, args...) -> begin
+            if fit_ratios
+                f_est = f_est .* Util.fit_pdf(y_train) # ratio solution -> pdf solution
+            end
+            inspect(Util.normalizepdf(_recode_result(f_est, recode_dict), warn=false), args...)
+        end
+    end
+    
+    # call the solver (ibu, run,...)
+    f_est = solver(R, g; kw_dict...)
+    if fit_ratios
+        f_est = f_est .* Util.fit_pdf(y_train) # ratio solution -> pdf solution
+    end
+    return Util.normalizepdf(_recode_result(f_est, recode_dict)) # revert recoding of labels
+end
+
 # check and repair the f_0 argument
-function _check_prior(f_0::Array{Float64,1}, m::Int64)
+function _check_prior(f_0::Vector{Float64}, m::Int64, fit_ratios::Bool=false)
     if length(f_0) == 0
-        return ones(m) ./ m
+        return fit_ratios ? ones(m) : ones(m) ./ m
     elseif length(f_0) != m
         throw(DimensionMismatch("dim(f_0) = $(length(f_0)) != $m, the number of classes"))
-    else # f_0 is provided and alright
-        return Util.normalizepdf(f_0) # ensure pdf
+    elseif fit_ratios # f_0 is provided and alright
+        return f_0
+    else
+        return Util.normalizepdf(f_0) # ensure pdf (default case)
     end
 end
 
-_check_prior(f_0::Array{Float64,1}, recode_dict::Dict) =
+_check_prior(f_0::Vector{Float64}, recode_dict::Dict{T, T}) where T<:Int =
     _check_prior(length(f_0) > 0 ? f_0[sort(setdiff(collect(values(recode_dict)), [-1]))] : f_0, length(recode_dict)-1 )
 
 # recode indices to resemble a unit range (no missing labels in between)
-function _recode_indices(bins::AbstractArray{T,1}, inds::AbstractArray{T,1}...) where T<:Int
+function _recode_indices(bins::AbstractVector{T}, inds::AbstractVector{T}...) where T<:Int
     
     # recode the training set
     inds_bins = sort(unique(vcat(inds...)))
@@ -76,16 +127,19 @@ function _recode_indices(bins::AbstractArray{T,1}, inds::AbstractArray{T,1}...) 
 end
 
 # recode a deconvolution result by reverting the initial recoding of the data
-function _recode_result(f::Array{Float64,1}, recode_dict::Dict{T,T}) where T<:Int
-    r = zeros(Float64, maximum(values(recode_dict)))
+_recode_result(f::Vector{Float64}, recode_dict::Dict{T, T}) where T<:Int =
+    _recode_result(convert(Matrix, f'), recode_dict)[:] # treat f like a 1xN matrix
+
+# like above but for probability matrices (used if DSEA returns contributions)
+function _recode_result(proba::Matrix{Float64}, recode_dict::Dict{T, T}) where T<:Int
+    r = zeros(Float64, size(proba, 1), maximum(values(recode_dict)))
     for (k, v) in recode_dict
         if k != -1
-            r[v] = f[k]
+            r[:, v] = proba[:, k]
         end # else, the key was just included to store the maximum value
     end
     return r
 end
-
 
 end
 

@@ -20,62 +20,20 @@
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
 """
-    run(data, train, y, x; kwargs...)
+    run(data, train, x, y[, bins_y]; kwargs...)
 
-Regularized Unfolding of the target distribution in the DataFrame `data`. The deconvolution
-is inferred from the DataFrame `train`, where the target column `y` and the observable
-column `x` are given.
+    run(x_data, x_train, y_train[, bins_y]; kwargs...)
 
-This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
-the two DataFrames.
-"""
-run(data::AbstractDataFrame, train::AbstractDataFrame, y::Symbol, x::Symbol; kwargs...) =
-    run(data[x], train[x], train[y]; kwargs...)
-
-"""
-    run(x_data, x_train, y_train; kwargs...)
-
-Regularized Unfolding of the target distribution, given the observations in the
-one-dimensional array `x_data`. The deconvolution is inferred from `x_train` and `y_train`.
-
-This function wraps `run(R, g; kwargs...)`, constructing `R` and `g` from the examples in
-the three arrays.
-"""
-function run(x_data::AbstractArray{T, 1},
-             x_train::AbstractArray{T, 1},
-             y_train::AbstractArray{T, 1},
-             bins::AbstractArray{T, 1} = 1:maximum(y_train);
-             kwargs...) where T<:Int
-                     
-    bins_x = 1:maximum(vcat(x_data, x_train)) # no need to provide this as an argument
-    
-    # recode indices
-    recode_dict, y_train = _recode_indices(bins, y_train)
-    _, x_train, x_data   = _recode_indices(bins_x, x_train, x_data)
-    kwargs_dict = Dict{Symbol, Any}(kwargs)
-    if haskey(kwargs_dict, :f_0)
-        kwargs_dict[:f_0] = _check_prior(kwargs_dict[:f_0], recode_dict)
-    end
-    if haskey(kwargs_dict, :inspect)
-        fun = kwargs_dict[:inspect] # inspection function
-        kwargs_dict[:inspect] = (f, args...) -> fun(_recode_result(f, recode_dict), args...)
-    end
-    
-    # prepare arguments
-    R = Util.fit_R(y_train, x_train, bins_y = bins, bins_x = bins_x)
-    g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
-    
-    # deconvolve
-    f = run(R, g; kwargs_dict...)
-    return _recode_result(f, recode_dict) # revert recoding of labels
-    
-end
-
-"""
     run(R, g; kwargs...)
 
-Perform RUN with the observed frequency distribution `g` (absolute counts!) and the detector
-response matrix `R`.
+
+Deconvolve the observed data applying the *Regularized Unfolding* trained on the given
+training set.
+
+The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
+`train[y]`) must contain label/observation indices rather than actual values. All expected
+indices in `y_train` are optionally provided as `bins_y`.
+
 
 **Keyword arguments**
 
@@ -88,15 +46,45 @@ response matrix `R`.
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
 - `inspect = nothing`
-  is a function `(f_k::Array, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
+  is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
+- `loggingstream = devnull`
+  is an optional `IO` stream to write log messages to.
+- `fit_ratios = false`
+  determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
+  `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
+
+
+**Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
+ratio prior or a pdf prior, but only in the third form. In the second form, `f_0` always
+specifies a pdf prior.
 """
-function run(R::Matrix{Float64}, g::Array{T,1};
-             n_df::Number = size(R, 2),
-             K::Int = 100,
-             epsilon::Float64 = 1e-6,
-             inspect::Function = (args...) -> nothing,
-             loggingstream::IO = devnull) where T<:Number
+run( data   :: AbstractDataFrame,
+     train  :: AbstractDataFrame,
+     x      :: Symbol,
+     y      :: Symbol,
+     bins_y :: AbstractVector = 1:maximum(train[y]);
+     kwargs... ) =
+  run(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
+
+
+# Vector form
+run( x_data  :: AbstractVector{T},
+     x_train :: AbstractVector{T},
+     y_train :: AbstractVector{T},
+     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
+     kwargs... ) where T<:Int =
+  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
+
+
+function run( R :: Matrix{TR},
+	          g :: Vector{Tg};
+              n_df    :: Number   = size(R, 2),
+              K       :: Int      = 100,
+              epsilon :: Float64  = 1e-6,
+              inspect :: Function = (args...) -> nothing,
+              loggingstream :: IO = devnull,
+              kwargs... ) where {TR<:Number, Tg<:Number}
     
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
@@ -139,7 +127,7 @@ function run(R::Matrix{Float64}, g::Array{T,1};
             rethrow(err)
         end
     end
-    inspect(Util.normalizepdf(f), 1, NaN, NaN)
+    inspect(f, 1, NaN, NaN)
     
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
@@ -209,7 +197,7 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         l_now = l(f) + _C_l(tau, C)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
-        inspect(Util.normalizepdf(f), k, ldiff, tau)
+        inspect(f, k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -219,17 +207,17 @@ function run(R::Matrix{Float64}, g::Array{T,1};
         l_prev = l_now
         
     end
-    return Util.normalizepdf(f)
+    return f
     
 end
 
 # Brute-force search of a tau satisfying the n_df relation
-function _tau(n_df::Number, eigvals_C::Array{Float64,1})
+function _tau(n_df::Number, eigvals_C::Vector{Float64})
     res = _tau(n_df, tau -> sum([ 1/(1 + tau*v) for v in eigvals_C ])) # recursive subroutine
     return res[1] # final tau
 end
 
-# Recursive subroutine of _tau(::Number, ::Array{Float64,1}) for higher precision
+# Recursive subroutine of _tau(::Number, ::Vector{Float64}) for higher precision
 function _tau(n_df::Number, taufunction::Function, min::Float64=-.01, max::Float64=-18.0, i::Int64=2)
     taus = logspace(min, max, 1000)
     ndfs = map(taufunction, taus)
@@ -252,19 +240,19 @@ end
 
 
 # objective function: negative log-likelihood
-_maxl_l(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
+_maxl_l(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> sum(begin
         fj = dot(R[j,:], f)
         fj - g[j]*real(log(complex(fj)))
     end for j in 1:length(g))
 
 # gradient of objective
-_maxl_g(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
+_maxl_g(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
            for i in 1:length(f) ]
 
 # hessian of objective
-_maxl_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
+_maxl_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
@@ -277,16 +265,16 @@ _maxl_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
 
 
 # objective function: least squares
-_lsq_l(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
+_lsq_l(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> sum([ (g[j] - dot(R[j,:], f))^2 / g[j] for j in 1:length(g) ])/2
 
 # gradient of objective
-_lsq_g(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
+_lsq_g(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> [ sum([ -R[j,i] * (g[j] - dot(R[j,:], f)) / g[j] for j in 1:length(g) ])
            for i in 1:length(f) ]
 
 # hessian of objective
-_lsq_H(R::Matrix{Float64}, g::AbstractArray{T,1}) where T<:Number =
+_lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
