@@ -20,22 +20,20 @@
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
 """
-    dsea(data, train, y, train_predict[, bins]; kwargs...)
+    dsea(data, train, y, train_predict[, bins_y, features]; kwargs...)
 
-    dsea(X_data, X_train, y_train, train_predict[, bins]; kwargs...)
+    dsea(X_data, X_train, y_train, train_predict[, bins_y]; kwargs...)
 
 
 Deconvolve the observed data with *DSEA/DSEA+* trained on the given training set.
 
-The first form of this function works on the two DataFrames `data` and `train`, where `y`
-specifies the target column to be deconvolved - this column has to be present in the
-DataFrame `train`. The second form works on vectors and matrices.
+The data is provided as feature matrices `X_data`, `X_train` and the label vector `y_train`
+(or accordingly `data[features]`, `train[features]`, and `train[y]`). Here, `y_train` must
+contain label indices rather than actual values. All expected indices are optionally provided
+as `bins_y`.
 
-To facilitate classification, `y_train` (or `train[y]` in the first form) must contain label
-indices rather than actual values. All expected indices are optionally provided as `bins`.
 The function object `train_predict(X_data, X_train, y_train, w_train) -> Matrix` trains and
-applies a classifier, obtaining a confidence matrix. All of its arguments but `w_train`,
-which is updated in each iteration, are simply passed through from `dsea`.
+applies a classifier to obtain a confidence matrix.
 
 
 **Keyword arguments**
@@ -72,13 +70,13 @@ dsea( data          :: AbstractDataFrame,
       train         :: AbstractDataFrame,
       y             :: Symbol,
       train_predict :: Function,
-      bins          :: AbstractVector{T} = 1:maximum(train[y]);
+      bins_y        :: AbstractVector{T} = 1:maximum(train[y]);
       features      :: AbstractVector{Symbol} = setdiff(names(train), [y]),
       kwargs... ) where T<:Int =
   dsea(Util.df2X(data, features),
        Util.df2Xy(train, y, features)...,
        train_predict,
-       bins;
+       bins_y;
        kwargs...) # DataFrame form
 
 
@@ -91,17 +89,17 @@ dsea( X_data        :: AbstractArray,
       X_train       :: AbstractArray,
       y_train       :: AbstractVector{T},
       train_predict :: Function,
-      bins          :: AbstractVector{T} = 1:maximum(y_train);
+      bins_y        :: AbstractVector{T} = 1:maximum(y_train);
       kwargs... ) where T<:Int =
   _dsea(convert(Array, X_data), convert(Array, X_train), convert(Vector, y_train),
-        train_predict, convert(Vector, bins); kwargs...)
+        train_predict, convert(Vector, bins_y); kwargs...)
 
 
 function _dsea(X_data        :: Array,
                X_train       :: Array,
                y_train       :: Vector{T},
                train_predict :: Function,
-               bins          :: Vector{T} = 1:maximum(y_train);
+               bins_y        :: Vector{T} = 1:maximum(y_train);
                f_0           :: Vector{Float64} = Float64[],
                alpha         :: Union{Float64, Function} = 1.0,
                fixweighting  :: Bool     = true,
@@ -113,7 +111,7 @@ function _dsea(X_data        :: Array,
                return_contributions :: Bool = false) where T<:Int
     
     # recode labels and check arguments
-    recode_dict, y_train = _recode_indices(bins, y_train)
+    recode_dict, y_train = _recode_indices(bins_y, y_train)
     if size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
     end
@@ -219,7 +217,7 @@ alpha_decay_mul(eta::Float64, a_1::Float64=1.0) =
     (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> a_1 * k^(eta-1)
 
 """
-    alpha_adaptive_run(x_data, x_train, y_train[, tau = 0]; bins, bins_x)
+    alpha_adaptive_run(x_data, x_train, y_train[, tau = 0]; bins_y, bins_x)
 
 Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
 This object adapts the DSEA step size to the current estimate by maximizing the likelihood
@@ -229,10 +227,10 @@ function alpha_adaptive_run( x_data  :: Vector{T},
                              x_train :: Vector{T},
                              y_train :: Vector{T},
                              tau     :: Number = 0.0;
-                             bins    :: AbstractVector{T} = 1:maximum(y_train),
+                             bins_y  :: AbstractVector{T} = 1:maximum(y_train),
                              bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)) ) where T<:Int
     # set up the discrete deconvolution problem
-    R = Util.fit_R(y_train, x_train, bins_y = bins, bins_x = bins_x)
+    R = Util.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x)
     g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
     
     # set up negative log likelihood function to be minimized

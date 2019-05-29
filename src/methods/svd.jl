@@ -1,7 +1,7 @@
 """
-    svd(data, train, x, y[, bins]; kwargs...)
+    svd(data, train, x, y[, bins_y]; kwargs...)
 
-    svd(x_data, x_train, y_train[, bins]; kwargs...)
+    svd(x_data, x_train, y_train[, bins_y]; kwargs...)
 
     svd(R, g; kwargs...)
 
@@ -9,16 +9,10 @@
 Deconvolve the observed data applying the *SVD-based deconvolution algorithm* trained on the
 given training set.
 
-The first form of this function works on the two DataFrames `data` and `train`, where `y`
-specifies the target column to be deconvolved (this column has to be present in `train`)
-and `x` specifies the observed column present in both DataFrames. The second form accordingly
-works on vectors and the third form makes use of a pre-defined detector response matrix `R`
-and an observed (discrete) probability density `g`. In the first two forms, `R` and `g` are
-directly obtained from the data and the keyword arguments.
-
 The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
 `train[y]`) must contain label/observation indices rather than actual values. All expected
-indices in `y_train` are optionally provided as `bins`.
+indices in `y_train` are optionally provided as `bins_y`. Alternatively, the detector
+response matrix `R` and the observed density vector `g` can be given directly.
 
 
 **Keyword arguments**
@@ -26,7 +20,7 @@ indices in `y_train` are optionally provided as `bins`.
 - `effective_rank = -1`
   is a regularization parameter which defines the effective rank of the solution. This rank
   must be <= dim(f). Any value smaller than one results turns off regularization.
-- 'N = length(x_data)'
+- `N = length(x_data)`
   is the number of observations. In the third form of the method, `N=sum(g)` is the default,
   assuming that `g` contains absolute counts, not probabilities.
 - `B = Util.cov_Poisson(g, N)`
@@ -41,7 +35,7 @@ indices in `y_train` are optionally provided as `bins`.
 
 
 **Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
-ratio prior or a pdf prior, but only in the third form. In the second form, `f_0` always
+ratio prior or a pdf prior, but only in the third form. In the other forms, `f_0` always
 specifies a pdf prior.
 """
 svd( data   :: AbstractDataFrame,

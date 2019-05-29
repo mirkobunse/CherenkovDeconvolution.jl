@@ -32,7 +32,8 @@ given training set.
 
 The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
 `train[y]`) must contain label/observation indices rather than actual values. All expected
-indices in `y_train` are optionally provided as `bins_y`.
+indices in `y_train` are optionally provided as `bins_y`. Alternatively, the detector
+response matrix `R` and the observed density vector `g` can be given directly.
 
 
 **Keyword arguments**
@@ -59,7 +60,7 @@ indices in `y_train` are optionally provided as `bins_y`.
 
 
 **Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
-ratio prior or a pdf prior, but only in the third form. In the second form, `f_0` always
+ratio prior or a pdf prior, but only in the third form. In the other forms, `f_0` always
 specifies a pdf prior.
 """
 ibu( data   :: AbstractDataFrame,
