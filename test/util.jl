@@ -1,6 +1,7 @@
 # 
 # Unit tests for the Util module
 # 
+@testset "CherenkovDeconvolution.Util, as tested in test/util.jl" begin
 
 
 # dummy data
@@ -160,3 +161,5 @@ end
     end
 end
 
+
+end # end of util testset

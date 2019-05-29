@@ -1,6 +1,8 @@
 # 
 # Unit tests for dsea
 # 
+@testset "Methods related to DSEA, as tested in test/methods/dsea.jl" begin
+
 
 @testset "_dsea_weights" begin
     for _ in 1:10
@@ -68,3 +70,5 @@ end
     
 end
 
+
+end

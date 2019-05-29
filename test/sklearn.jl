@@ -1,6 +1,7 @@
 # 
 # Unit tests for the Sklearn module
 # 
+@testset "CherenkovDeconvolution.Sklearn, as tested in test/sklearn.jl" begin
 
 
 # dummy data
@@ -42,3 +43,5 @@ end
     @test Sklearn.bins(kd) == [ 1, 2, 3 ]
 end
 
+
+end # end of sklearn testset
