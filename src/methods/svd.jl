@@ -83,9 +83,9 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
     # 
     # Re-scaling and rotation steps 1-5 (without step 3) [hoecker1995svd]
     # 
-    r, Q = eig(B) # transformation step 1
-    R_tilde = diagm(sqrt.(r)) * Q' * R # sqrt by def (33), where R_ii = r_i^2
-    g_tilde = diagm(sqrt.(r)) * Q' * g
+    r, Q = eigen(B) # transformation step 1
+    R_tilde = Matrix(Diagonal(sqrt.(r))) * Q' * R # sqrt by def (33), where R_ii = r_i^2
+    g_tilde = Matrix(Diagonal(sqrt.(r))) * Q' * g
     U, s, V = LinearAlgebra.svd(R_tilde * inv_C) # transformation step 4
     d = U' * g_tilde # transformation step 5
     
