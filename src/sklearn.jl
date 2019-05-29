@@ -26,9 +26,6 @@ using DataFrames, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall
 import CherenkovDeconvolution.Util
 
-@sk_import tree    : DecisionTreeClassifier
-@sk_import cluster : KMeans
-
 export ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
 export train_and_predict_proba, encode, bins
 
@@ -125,7 +122,9 @@ end
 Unsupervised clustering using all columns in `train`, finding `k` clusters.
 It can be used to `discretize()` multidimensional data.
 """
-function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int; seed::UInt32=rand(UInt32)) where T<:Number
+function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int;
+                           seed::UInt32=rand(UInt32)) where T<:Number
+    @sk_import cluster : KMeans
     clustering = KMeans(n_clusters=k, n_init=1, random_state=seed)
     ScikitLearn.fit!(clustering, convert(Matrix, X_train))
     return KMeansDiscretizer{T}(clustering, k)
@@ -136,8 +135,8 @@ end
 
 Discretize `X_data` using the cluster indices of `d` as discrete values.
 """
-Discretizers.encode(d::KMeansDiscretizer{T}, X_data::Matrix{T}) where T<:Number =
-    convert(Vector{Int64}, ScikitLearn.predict(d.model, X_data)) .+ 1
+Discretizers.encode(d::KMeansDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number =
+    convert(Vector{Int64}, ScikitLearn.predict(d.model, convert(Matrix, X_data))) .+ 1
 
 bins(d::KMeansDiscretizer) = collect(1:d.k)
 
