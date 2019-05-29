@@ -22,7 +22,7 @@
 module Util
 
 
-using StatsBase, Discretizers, Polynomials, DataFrames
+using DataFrames, Discretizers, LinearAlgebra, Polynomials, StatsBase
 
 export fit_pdf, fit_R, edges, normalizetransfer
 export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
@@ -201,7 +201,7 @@ The method `cov_Poisson` assumes a Poisson distribution in each of the bins.
 cov_Poisson(g::Vector{T}, N::Integer) where T<:Real =
     cov_Poisson(round.(Int64, g.*N))
 
-cov_Poisson(g::Vector{T}) where T<:Integer = diagm(g) # Integer version, variance = mean
+cov_Poisson(g::Vector{T}) where T<:Integer = diagm(0 => g) # Integer version, variance = mean
 
 function cov_multinomial(g::Vector{T}, N::Integer) where T<:Real
     cov = zeros(length(g), length(g))

@@ -86,7 +86,7 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
     r, Q = eig(B) # transformation step 1
     R_tilde = diagm(sqrt.(r)) * Q' * R # sqrt by def (33), where R_ii = r_i^2
     g_tilde = diagm(sqrt.(r)) * Q' * g
-    U, s, V = Base.svd(R_tilde * inv_C) # transformation step 4
+    U, s, V = LinearAlgebra.svd(R_tilde * inv_C) # transformation step 4
     d = U' * g_tilde # transformation step 5
     
     # 
@@ -106,13 +106,12 @@ _svd_C(m::Int, epsilon::Float64) =
     (if m < 1
         throw(ArgumentError("m has to be greater than zero"))
     elseif m < 2 # stupid case
-        eye(m)
-    elseif m == 2 # not quite intelligent case
-        -eye(m) + diagm(repeat([1], inner=m-1), 1) + diagm(repeat([1], inner=m-1), -1)
+        Matrix(1.0I, m, m) # identity matrix
     else # usual case
-        convert(Matrix{Float64},
-            diagm(vcat([-1], repeat([-2], inner=m-2), [-1])) +
-            diagm(repeat([1], inner=m-1),  1) +
-            diagm(repeat([1], inner=m-1), -1))
-    end) + epsilon * eye(m)
+        convert(Matrix{Float64}, diagm(
+            0 => vcat([-1], repeat([-2], inner=m-2), [-1]),
+            1 => repeat([1], inner=m-1),
+           -1 => repeat([1], inner=m-1)
+        ))
+    end) + Matrix(epsilon * I, m, m)
 
