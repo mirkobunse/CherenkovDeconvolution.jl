@@ -129,7 +129,7 @@ function _dsea(X_data        :: Array,
     inspect(_recode_result(f, recode_dict), 0, NaN, NaN)
     
     # iterative deconvolution
-    proba = Matrix{Float64}(0, 0) # empty matrix
+    proba = Matrix{Float64}(undef, 0, 0) # empty matrix
     for k in 1:K
         f_prev = f
         

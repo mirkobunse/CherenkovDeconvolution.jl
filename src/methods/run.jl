@@ -301,7 +301,7 @@ _tikhonov_binning(m::Int) =
     if m < 1
         throw(ArgumentError("m has to be greater than zero"))
     elseif m < 3 # stupid case
-        Matrix{Float64}(I, m, m) # identity matrix (was Base.eye(m) before julia-0.7)
+        Matrix(1.0I, m, m) # identity matrix (was Base.eye(m) before julia-0.7)
     elseif m == 3 # not quite an intelligent case
         convert(Matrix{Float64},
             diagm( 0 => repeat([1], 3),
