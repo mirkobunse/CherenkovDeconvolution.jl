@@ -182,16 +182,21 @@ _DOC_COV = """
     
     cov_Poisson(g)
     cov_multinomial(g)
+    
+    cov_g(g, N = sum(g), assumption = :Poisson)
 
-Estimate the variance-covariance matrix of the bins with an observed `g`. In the first form,
-`g` is a density and `N` is the total number of observations. In the second form, `g`
-contains absolute counts, so that `N = sum(g)`.
+Estimate the variance-covariance matrix of the bins with an observed `g`.
+
+In the first form, `g` is a density and `N` is the total number of observations.
+In the second form, `g` contains absolute counts, so that `N = sum(g)`. The third
+form is a general shorthand for any of the above methods.
 
 The method `cov_Poisson` assumes a Poisson distribution in each of the bins.
-`cov_multinomial`, assumes a common multinomial distribution.
+`cov_multinomial`, assumes a multinomial distribution over all bins.
 """
 @doc _DOC_COV cov_Poisson
 @doc _DOC_COV cov_multinomial
+@doc _DOC_COV cov_g
 
 cov_Poisson(g::Vector{T}, N::Integer) where T<:Real =
     cov_Poisson(round.(Int64, g.*N))
@@ -208,6 +213,19 @@ end
 
 cov_multinomial(g::Vector{T}) where T<:Integer =
     cov_multinomial(Util.normalizepdf(g), sum(g)) # Integer version
+
+cov_g(g::Vector{T}, N::Integer = sum(Int64, g), assumption = :Poisson) where T<:Real =
+    if assumption == :Poisson && eltype(g) <: Integer
+        Util.cov_Poisson(g) # counts version
+    elseif assumption == :Poisson
+        Util.cov_Poisson(g, N) # density version
+    elseif assumption == :multinomial && eltype(g) <: Integer
+        Util.cov_multinomial(g) # counts version
+    elseif assumption == :multinomial
+        Util.cov_multinomial(g, N) # density version
+    else
+        throw(ArgumentError("assumption=$assumption must be either :Poisson or :multinomial"))
+    end
 
 
 """

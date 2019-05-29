@@ -26,14 +26,12 @@ indices in `y_train` are optionally provided as `bins`.
 - `effective_rank = -1`
   is a regularization parameter which defines the effective rank of the solution. This rank
   must be <= dim(f). Any value smaller than one results turns off regularization.
-- `B = diagm(g)`
-  is the co-variance matrix of the observed bins. The default value represents the
-  assumption that each observed bin is Poisson-distributed with rate `g[i]`.
-- `assume_poisson = true`
-  is a short-hand for setting the covariance matrix `B` of the observed bins to `diagm(g)`
-  (the default value) or to the unit matrix `eye(length(g)`. Using a unit matrix means to
-  drop the Poisson assumption. If `B` is set explicitly, the value of `assume_poisson` is
-  ignored.
+- 'N = length(x_data)'
+  is the number of observations. In the third form of the method, `N=sum(g)` is the default,
+  assuming that `g` contains absolute counts, not probabilities.
+- `B = Util.cov_Poisson(g, N)`
+  is the varianca-covariance matrix of the observed bins. The default value represents the
+  assumption that each observed bin is Poisson-distributed with rate `g[i]*N`.
 - `epsilon_C = 1e-3`
   is a small constant to be added to each diagonal entry of the regularization matrix `C`.
   If no such constant would be added, inversion of `C` would not be possible.
@@ -56,45 +54,37 @@ svd( data   :: AbstractDataFrame,
 
 
 # Vector form
-svd( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  _discrete_deconvolution(svd, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
-
+function svd( x_data  :: AbstractVector{T},
+              x_train :: AbstractVector{T},
+              y_train :: AbstractVector{T},
+              bins_y  :: AbstractVector{T} = 1:maximum(y_train);
+              kwargs... ) where T<:Int
+    kwdict = Dict{Symbol, Any}(kwargs)
+    if !haskey(kwdict, :N) # number of observations must be set
+        kwdict[:N] = length(x_data)
+    end
+    return _discrete_deconvolution(svd, x_data, x_train, y_train, bins_y, kwdict)
+end
 
 function svd(R::Matrix{TR}, g::Vector{Tg};
              effective_rank::Int = -1,
-             cov::Symbol = :Poisson,
+             N::Int = sum(Int64, g),
+             B::Matrix{TB} = Util.cov_Poisson(g, N),
              epsilon_C::Float64 = 1e-3,
              fit_ratios::Bool = false,
-             kwargs...) where {TR<:Number, Tg<:Number}
-    
+             kwargs...) where {TR<:Number, Tg<:Number, TB<:Number}
+
     # check arguments
     if size(R, 1) != length(g)
         throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
     elseif size(B, 1) != length(g) || size(B, 2) != length(g)
-        throw(DimensionMismatch("One dimension dim(B) = $(size(B)) is not equal to the observable dimension $(length(g))"))
+        throw(DimensionMismatch("One of dim(B) = $(size(B)) is not equal to the observable dimension $(length(g))"))
     elseif effective_rank > size(R, 2)
         warn("Assuming effective_rank = $(size(R, 2)) instead of $(effective_rank)",
              " because effective_rank <= dim(f) is required")
         effective_rank = size(R, 2)
     end
     inv_C = inv(_svd_C(size(R, 2), epsilon_C))
-    
-    # variance-covariance matrix
-    B = if cov == :multinomial && eltype(g) <: Real
-            Util.cov_multinomial(g, N) # density version
-        elseif cov == :multinomial
-            Util.cov_multinomial(g) # counts version
-        elseif cov == :Poisson && eltype(g) <: Real
-            Util.cov_Poisson(g, N) # density version
-        elseif cov == :Poisson
-            Util.cov_Poisson(g) # counts version
-        else
-            error("cov must be either :multinomial or :Poisson")
-        end
     
     # 
     # Re-scaling and rotation steps 1-5 (without step 3) [hoecker1995svd]
@@ -115,9 +105,6 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
     return inv_C * V * z_tau # step 3 (denoted as w_tau in the paper)
     
 end
-
-# co-variance matrix of the observed frequency distribution - assuming un-correlated Poisson-distributed bins
-_svd_B_Poisson(g::Vector{T}) where T<:Number = diagm(g) # variance = mean, due to Poisson
 
 # regularization matrix C from the SVD approach - the square of _svd_C is similar but not
 # equal to the tikhonov matrix from RUN
