@@ -2,34 +2,29 @@
 
 # CherenkovDeconvolution.jl
 
-Deconvolution algorithms for Cherenkov astronomy and other use cases.
-
+Deconvolution estimates the probability density function of a latent quantity
+by relating this quantity to other, measurable quantities.
+It is frequently used in Cherenkov astronomy, where the energy distribution
+of cosmic particles is estimated from data taken by a telescope.
 
 
 ## Getting Started
 
-This package is documented on [our deconvolution website](https://sfb876.tu-dortmund.de/deconvolution).
-It is installed with the package manager (Julia-0.7 and above):
+You can install this package with the Julia package manager (Julia-0.7 and above):
 
 ```julia
-using Pkg
-Pkg.clone("git://github.com/mirkobunse/CherenkovDeconvolution.jl.git")
+] add https://github.com/mirkobunse/CherenkovDeconvolution.jl")
 ```
 
 The [example directory](https://github.com/mirkobunse/CherenkovDeconvolution.jl/tree/master/example)
-explains, how to use the package.
-
-**Caution:** Since [ScikitLearn.jl](https://github.com/cstjean/ScikitLearn.jl) does not yet
-support Julia-1.0, we can not provide full support either. However, apart from the
-`CherenkovDeconvolution.Sklearn` sub-module, our package is ready for this major Julia release.
-
+provides you with some usage examples.
+More information is to be found on [our website](https://sfb876.tu-dortmund.de/deconvolution).
 
 
 ## Current Status
 
-CherenkovDeconvolution.jl implements an enhanced version of the Dortmund Spectrum Estimation Algorithm (DSEA+),
+CherenkovDeconvolution.jl implements our enhanced version of the Dortmund Spectrum Estimation Algorithm (DSEA+),
 the Regularized Unfolding (RUN) method, and the Iterative Bayesian Unfolding (IBU).
 An extensive set of experiments is taken out on these algorithms [in another repository](https://github.com/mirkobunse/deconv-exp).
 
 We also ported this package to Python, calling it [CherenkovDeconvolution.py](https://github.com/mirkobunse/CherenkovDeconvolution.py).
-
