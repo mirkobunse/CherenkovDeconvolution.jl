@@ -111,6 +111,12 @@ function _dsea(X_data        :: Array,
                return_contributions :: Bool = false) where T<:Int
     
     # recode labels and check arguments
+    if all(y_train .== y_train[1])
+        f_est = zeros(length(bins_y))
+        f_est[bins_y .== y_train[1]] .= 1
+        @warn "Only one label in the training set, returning a trivial estimate" f_est
+        return f_est
+    end
     recode_dict, y_train = _recode_indices(bins_y, y_train)
     if size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
@@ -242,12 +248,20 @@ function alpha_adaptive_run( x_data  :: Vector{T},
     # return step size function
     return (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> begin
         a_min, a_max = _alpha_range(pk, f)
-        optimize(a -> negloglike(f + a * pk), a_min, a_max).minimizer # from Optim.jl
+        if a_max > a_min
+            optimize(a -> negloglike(f + a * pk), a_min, a_max).minimizer # from Optim.jl
+        else
+            a_min # only one value is feasible
+        end
     end
 end
 
 # range of admissible alpha values
 function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
+    if all(pk .== 0)
+        return 0., 0.
+    end # no reasonable direction
+    
     # find alpha values for which the next estimate would be zero in one dimension
     a_zero = - (f[pk.!=0] ./ pk[pk.!=0]) # ignore zeros in pk, for which alpha is arbitrary
     
