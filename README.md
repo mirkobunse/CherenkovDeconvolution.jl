@@ -13,7 +13,7 @@ of cosmic particles is estimated from data taken by a telescope.
 You can install this package with the Julia package manager (Julia-0.7 and above):
 
 ```julia
-] add https://github.com/mirkobunse/CherenkovDeconvolution.jl")
+] add CherenkovDeconvolution
 ```
 
 The [example directory](https://github.com/mirkobunse/CherenkovDeconvolution.jl/tree/master/example)
