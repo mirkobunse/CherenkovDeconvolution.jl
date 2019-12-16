@@ -220,7 +220,7 @@ end
 
 # Recursive subroutine of _tau(::Number, ::Vector{Float64}) for higher precision
 function _tau(n_df::Number, taufunction::Function, min::Float64=-.01, max::Float64=-18.0, i::Int64=2)
-    taus = logspace(min, max, 1000)
+    taus = 10 .^ range(min, stop=max, length=1000)
     ndfs = map(taufunction, taus)
     
     best = findmin(abs.(ndfs .- n_df)) # tuple from difference and index of minimum
