@@ -128,10 +128,10 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             arr[abs.(arr) .== Inf] .= 0
             arr[:] .= abs.(arr) # float arrays can have negative zeros leading to more warnings
         end
-        if warn
-            Base.warn("Normalization set NaNs and Infs",
-                      single ? "" : " in $(sum(nans)) arrays",
-                      " to zero")
+        if warn && single
+            @warn "Normalization set NaNs and Infs to zero"
+        elseif warn
+            @warn "Normalization set NaNs and Infs in $(sum(nans)) arrays to zero"
         end
     end
     
@@ -142,10 +142,10 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             arr[arr .< 0] .= 0
             arr[:] .= abs.(arr)
         end
-        if warn
-            Base.warn("Normalization set negative values",
-                      single ? "" : " in $(sum(negs)) arrays",
-                      " to zero")
+        if warn && single
+            @warn "Normalization set negative values to zero"
+        elseif warn
+            @warn "Normalization set negative values in $(sum(negs)) arrays to zero"
         end
     end
     
@@ -157,10 +157,10 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             idim = length(arr)
             arr[:] .= ones(idim) ./ idim
         end
-        if warn
-            Base.warn("Normalization replaced",
-                      single ? " a zero vector" : " $(sum(zers)) zero vectors",
-                      " by a uniform density")
+        if warn && single
+            @warn "Normalization replaced a zero vector by a uniform density"
+        elseif warn
+            @warn "Normalization replaced $(sum(zers)) zero vectors by uniform densities"
         end
     end
     
@@ -262,7 +262,7 @@ function _repair_smoothing(f::Vector{Float64}, warn::Bool)
                    end
         end
         if warn # warn about negative values?
-            Base.warn("Smoothing averaged the values of neighbours to circumvent negative values")
+            Base.@warn "Smoothing averaged the values of neighbours to circumvent negative values"
         end
     end
     return normalizepdf(f, warn=warn)

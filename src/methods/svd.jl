@@ -74,8 +74,7 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
     elseif size(B, 1) != length(g) || size(B, 2) != length(g)
         throw(DimensionMismatch("One of dim(B) = $(size(B)) is not equal to the observable dimension $(length(g))"))
     elseif effective_rank > size(R, 2)
-        warn("Assuming effective_rank = $(size(R, 2)) instead of $(effective_rank)",
-             " because effective_rank <= dim(f) is required")
+        @warn "Assuming effective_rank = $(size(R, 2)) instead of $(effective_rank) because effective_rank <= dim(f) is required"
         effective_rank = size(R, 2)
     end
     inv_C = inv(_svd_C(size(R, 2), epsilon_C))
