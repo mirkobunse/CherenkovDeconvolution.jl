@@ -223,7 +223,7 @@ alpha_decay_mul(eta::Float64, a_1::Float64=1.0) =
     (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> a_1 * k^(eta-1)
 
 """
-    alpha_adaptive_run(x_data, x_train, y_train[, tau = 0]; bins_y, bins_x)
+    alpha_adaptive_run(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false])
 
 Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
 This object adapts the DSEA step size to the current estimate by maximizing the likelihood
@@ -234,9 +234,10 @@ function alpha_adaptive_run( x_data  :: Vector{T},
                              y_train :: Vector{T},
                              tau     :: Number = 0.0;
                              bins_y  :: AbstractVector{T} = 1:maximum(y_train),
-                             bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)) ) where T<:Int
+                             bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
+                             warn    :: Bool = false ) where T<:Int
     # set up the discrete deconvolution problem
-    R = Util.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x)
+    R = Util.normalizetransfer(Util.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
     g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
     
     # set up negative log likelihood function to be minimized

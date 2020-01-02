@@ -89,14 +89,14 @@ end
 
 
 """
-    normalizetransfer(R)
+    normalizetransfer(R[; warn=true])
 
 Normalize each column in `R` to make a probability density function.
 """
-function normalizetransfer(R::AbstractMatrix{T}) where T<:Number
+function normalizetransfer(R::AbstractMatrix{T}; warn::Bool=true) where T<:Number
     R_norm = zeros(Float64, size(R))
     for i in 1:size(R, 2)
-        R_norm[:,i] = normalizepdf(R[:,i])
+        R_norm[:,i] = normalizepdf(R[:,i], warn=warn)
     end
     return R_norm
 end
