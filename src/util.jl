@@ -278,8 +278,8 @@ target values.
 """
 function expansion_discretizer(ld::LinearDiscretizer, factor::Int)
     ymin, ymax = extrema(ld)
-    num_bins   = length(bincenters(ld))
-    return LinearDiscretizer(range(ymin, step = ymax, length = factor * num_bins + 1))
+    num_bins = factor * length(bincenters(ld))
+    return LinearDiscretizer(range(ymin, step = (ymax - ymin) / num_bins, length=num_bins + 1))
 end
 
 """
