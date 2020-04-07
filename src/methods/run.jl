@@ -116,7 +116,7 @@ function run( R :: Matrix{TR},
     H_lsq = _lsq_H(R, g)(f)
     if !all(isfinite.(H_lsq))
         @warn "LSq hessian contains Infs or NaNs - replacing these by zero"
-        H_lsq[.!(isfinite.(H_lsq))] = 0.0
+        H_lsq[.!(isfinite.(H_lsq))] .= 0.0
     end
     f += try
         - inv(H_lsq) * _lsq_g(R, g)(f)
@@ -139,7 +139,7 @@ function run( R :: Matrix{TR},
         H_f = H_l(f)
         if !all(isfinite.(H_f))
             @warn "MaxL hessian contains Infs or NaNs - replacing these by zero"
-            H_f[.!(isfinite.(H_f))] = 0.0
+            H_f[.!(isfinite.(H_f))] .= 0.0
         end
         
         # eigendecomposition of the Hessian: H_f == U*D*U' (complex conversion required if more y than x bins)
