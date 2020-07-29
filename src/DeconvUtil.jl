@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-module Util
+module DeconvUtil
 
 using DataFrames, Discretizers, LinearAlgebra, Polynomials, StatsBase
 
@@ -34,7 +34,7 @@ export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
 
 The result is normalized by default. If it is not normalized now, you can do so later by
-calling `Util.normalizepdf`.
+calling `DeconvUtil.normalizepdf`.
 
 Laplace correction means that at least one example is assumed in every bin, so that no bin
 has probability zero. This feature is disabled by default.
@@ -56,7 +56,7 @@ Estimate the detector response matrix `R`, which empirically captures the transf
 integer array `y` to the integer array `x`.
 
 `R` is normalized by default so that `fit_pdf(x) == R * fit_pdf(y)`.
-If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
+If `R` is not normalized now, you can do so later calling `DeconvUtil.normalizetransfer(R)`.
 """
 function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
                bins_y::AbstractVector{T}=unique(y),
@@ -211,17 +211,17 @@ function cov_multinomial(g::Vector{T}, N::Integer) where T<:Real
 end
 
 cov_multinomial(g::Vector{T}) where T<:Integer =
-    cov_multinomial(Util.normalizepdf(g), sum(g)) # Integer version
+    cov_multinomial(normalizepdf(g), sum(g)) # Integer version
 
 cov_g(g::Vector{T}, N::Integer = sum(Int64, g), assumption = :Poisson) where T<:Real =
     if assumption == :Poisson && eltype(g) <: Integer
-        Util.cov_Poisson(g) # counts version
+        cov_Poisson(g) # counts version
     elseif assumption == :Poisson
-        Util.cov_Poisson(g, N) # density version
+        cov_Poisson(g, N) # density version
     elseif assumption == :multinomial && eltype(g) <: Integer
-        Util.cov_multinomial(g) # counts version
+        cov_multinomial(g) # counts version
     elseif assumption == :multinomial
-        Util.cov_multinomial(g, N) # density version
+        cov_multinomial(g, N) # density version
     else
         throw(ArgumentError("assumption=$assumption must be either :Poisson or :multinomial"))
     end

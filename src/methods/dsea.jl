@@ -73,8 +73,8 @@ dsea( data          :: AbstractDataFrame,
       bins_y        :: AbstractVector{T} = 1:maximum(train[y]);
       features      :: AbstractVector{Symbol} = setdiff(names(train), [y]),
       kwargs... ) where T<:Int =
-  dsea(Util.df2X(data, features),
-       Util.df2Xy(train, y, features)...,
+  dsea(DeconvUtil.df2X(data, features),
+       DeconvUtil.df2Xy(train, y, features)...,
        train_predict,
        bins_y;
        kwargs...) # DataFrame form
@@ -129,8 +129,8 @@ function _dsea(X_data        :: Array,
     
     # initial estimate
     f       = f_0
-    f_train = Util.fit_pdf(y_train, laplace=true)                            # training pdf with Laplace correction
-    w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train, warn=false) : f # bin weights
+    f_train = DeconvUtil.fit_pdf(y_train, laplace=true)                            # training pdf with Laplace correction
+    w_bin   = fixweighting ? DeconvUtil.normalizepdf(f ./ f_train, warn=false) : f # bin weights
     w_train = _dsea_weights(y_train, w_bin)                                  # instance weights
     inspect(_recode_result(f, recode_dict), 0, NaN, NaN)
     
@@ -150,7 +150,7 @@ function _dsea(X_data        :: Array,
         # = = = = = = = = = = = = = =
         
         # monitor progress
-        chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
+        chi2s = DeconvUtil.chi2s(f_prev, f, false) # Chi Square distance between iterations
         @info "DSEA iteration $k/$K uses alpha = $alphak (chi2s = $chi2s)"
         inspect(_recode_result(f, recode_dict), k, chi2s, alphak)
         
@@ -163,7 +163,7 @@ function _dsea(X_data        :: Array,
         # == smoothing and reweighting in between iterations ==
         if k < K
             f = smoothing(f)
-            w_bin   = fixweighting ? Util.normalizepdf(f ./ f_train, warn=false) : f
+            w_bin   = fixweighting ? DeconvUtil.normalizepdf(f ./ f_train, warn=false) : f
             w_train = _dsea_weights(y_train, w_bin)
         end
         # = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -185,7 +185,7 @@ _dsea_weights(y_train::Vector{T}, w_bin::Vector{Float64}) where T<:Int =
 
 # the reconstructed estimate is the sum of confidences in each bin
 _dsea_reconstruct(proba::Matrix{Float64}) =
-    Util.normalizepdf(map(i -> sum(proba[:, i]), 1:size(proba, 2)), warn=false)
+    DeconvUtil.normalizepdf(map(i -> sum(proba[:, i]), 1:size(proba, 2)), warn=false)
 
 # the step taken by DSEA+, where alpha may be a constant or a function
 function _dsea_step(k::Int64, f::Vector{Float64}, f_prev::Vector{Float64},
@@ -237,8 +237,8 @@ function alpha_adaptive_run( x_data  :: Vector{T},
                              bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
                              warn    :: Bool = false ) where T<:Int
     # set up the discrete deconvolution problem
-    R = Util.normalizetransfer(Util.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
-    g = Util.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
+    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
+    g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
     
     # set up negative log likelihood function to be minimized
     C = _tikhonov_binning(size(R, 2))       # regularization matrix (from run.jl)

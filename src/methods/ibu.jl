@@ -116,12 +116,12 @@ function ibu( R :: Matrix{TR},
         # === apply Bayes' rule ===
         f = _ibu_reverse_transfer(R, f_prev_smooth) * g
         if !fit_ratios
-            f = Util.normalizepdf(f, warn=false)
+            f = DeconvUtil.normalizepdf(f, warn=false)
         end
         # = = = = = = = = = = = = =
         
         # monitor progress
-        chi2s = Util.chi2s(f_prev, f, false) # Chi Square distance between iterations
+        chi2s = DeconvUtil.chi2s(f_prev, f, false) # Chi Square distance between iterations
         @debug "IBU iteration $k/$K (chi2s = $chi2s)"
         inspect(f, k, chi2s)
         

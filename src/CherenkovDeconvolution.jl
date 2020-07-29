@@ -24,14 +24,14 @@ module CherenkovDeconvolution
 using LinearAlgebra, DataFrames
 using Optim: optimize # Optim required for adaptive step sizes
 
-export Util, Sklearn
+export DeconvUtil, DeconvLearn
 export dsea, ibu, run
 export alpha_decay_exp, alpha_decay_mul, alpha_adaptive_run
 
 
 # utility modules
-include("util.jl")
-include("sklearn.jl")
+include("DeconvUtil.jl")
+include("DeconvLearn.jl")
 
 
 # deconvolution methods
@@ -60,18 +60,18 @@ function _discrete_deconvolution( solver  :: Function,
     # prepare the arguments for the solver
     bins_x = 1:maximum(vcat(x_data, x_train)) # ensure same bins in R and g
     fit_ratios = get(kw_dict, :fit_ratios, false) # ratios fitted instead of pdfs?
-    R = Util.fit_R(y_train, x_train, bins_x = bins_x, normalize = !fit_ratios)
-    g = Util.fit_pdf(x_data, bins_x, normalize = normalize_g) # absolute counts instead of pdf
+    R = DeconvUtil.fit_R(y_train, x_train, bins_x = bins_x, normalize = !fit_ratios)
+    g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = normalize_g) # absolute counts instead of pdf
     
     # recode the prior (if specified)
     if haskey(kw_dict, :f_0)
         f_0 = _check_prior(kw_dict[:f_0], recode_dict) # also normalizes f_0
         if fit_ratios
-            f_0 = f_0 ./ Util.fit_pdf(y_train) # pdf prior -> ratio prior
+            f_0 = f_0 ./ DeconvUtil.fit_pdf(y_train) # pdf prior -> ratio prior
         end
         kw_dict[:f_0] = f_0 # update
     elseif fit_ratios
-        kw_dict[:f_0] = ones(size(R, 2)) ./ Util.fit_pdf(y_train) # uniform prior instead of f_train
+        kw_dict[:f_0] = ones(size(R, 2)) ./ DeconvUtil.fit_pdf(y_train) # uniform prior instead of f_train
     end
     
     # inspect with original coding of labels
@@ -79,18 +79,18 @@ function _discrete_deconvolution( solver  :: Function,
         inspect = kw_dict[:inspect] # inspection function
         kw_dict[:inspect] = (f_est, args...) -> begin
             if fit_ratios
-                f_est = f_est .* Util.fit_pdf(y_train) # ratio solution -> pdf solution
+                f_est = f_est .* DeconvUtil.fit_pdf(y_train) # ratio solution -> pdf solution
             end
-            inspect(Util.normalizepdf(_recode_result(f_est, recode_dict), warn=false), args...)
+            inspect(DeconvUtil.normalizepdf(_recode_result(f_est, recode_dict), warn=false), args...)
         end
     end
     
     # call the solver (ibu, run,...)
     f_est = solver(R, g; kw_dict...)
     if fit_ratios
-        f_est = f_est .* Util.fit_pdf(y_train) # ratio solution -> pdf solution
+        f_est = f_est .* DeconvUtil.fit_pdf(y_train) # ratio solution -> pdf solution
     end
-    return Util.normalizepdf(_recode_result(f_est, recode_dict)) # revert recoding of labels
+    return DeconvUtil.normalizepdf(_recode_result(f_est, recode_dict)) # revert recoding of labels
 end
 
 # check and repair the f_0 argument
@@ -102,7 +102,7 @@ function _check_prior(f_0::Vector{Float64}, m::Int64, fit_ratios::Bool=false)
     elseif fit_ratios # f_0 is provided and alright
         return f_0
     else
-        return Util.normalizepdf(f_0) # ensure pdf (default case)
+        return DeconvUtil.normalizepdf(f_0) # ensure pdf (default case)
     end
 end
 
