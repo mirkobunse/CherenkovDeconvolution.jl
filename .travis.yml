@@ -4,7 +4,6 @@ os:
   - linux
   - osx
 julia:
-  - 0.7
   - 1.0
   - 1.3
 notifications:
@@ -15,6 +14,16 @@ git:
 # empty environment variable lets PyCall set up a new miniconda environment
 env:
   - PYTHON=""
+
+# 1) default step for Julia v0.7 and higher
+# 2) installation of ScikitLearn must be triggered before the testing phase
+# 3) default step for Julia v0.7 and higher
+#
+# https://github.com/travis-ci/travis-build/blob/master/lib/travis/build/script/julia.rb
+script:
+  - 'julia --color=yes -e "using Pkg; if VERSION >= v\"1.1.0-rc1\"; Pkg.build(verbose=true); else Pkg.build(); end"'
+  - 'julia -e "using ScikitLearn; @sk_import tree : DecisionTreeClassifier"'
+  - 'julia --check-bounds=yes --color=yes -e "using Pkg; Pkg.test(coverage=true)"'
 
 # push coverage results to Codecov
 after_success:

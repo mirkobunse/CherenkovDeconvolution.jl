@@ -18,7 +18,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 [compat]
 DataFrames = "< 0.21"
 Discretizers = "< 4"
-Distances = "< 0.9"
+Distances = "0.8.2 - 0.8"
 MLDataUtils = "< 0.6"
 NBInclude = "< 3"
 Optim = "< 0.20"
