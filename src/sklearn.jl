@@ -19,21 +19,27 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-
-__precompile__(false)
-
 module Sklearn
 
-
 using DataFrames, ScikitLearn, Discretizers
-using PyCall: PyObject, PyArray, pycall
+using PyCall: PyObject, PyArray, pycall, pyimport
 import CherenkovDeconvolution.Util
-
-@sk_import cluster : KMeans
-@sk_import tree : DecisionTreeClassifier
 
 export ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
 export train_and_predict_proba, encode, bins
+
+
+# the following replacement for @sk_import enables precompilation
+const __KMeans = Ref{PyObject}()
+const __DecisionTreeClassifier = Ref{PyObject}()
+
+function __init__()
+    global __KMeans[] = pyimport("sklearn.cluster").KMeans
+    global __DecisionTreeClassifier[] = pyimport("sklearn.tree").DecisionTreeClassifier
+end
+
+KMeans(args...; kwargs...) = __KMeans[](args...; kwargs...)
+DecisionTreeClassifier(args...; kwargs...) = __DecisionTreeClassifier[](args...; kwargs...)
 
 
 """

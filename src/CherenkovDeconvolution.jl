@@ -19,11 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-
-__precompile__(true)
-
 module CherenkovDeconvolution
-
 
 using LinearAlgebra, DataFrames
 using Optim: optimize # Optim required for adaptive step sizes
