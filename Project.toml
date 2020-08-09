@@ -15,9 +15,6 @@ ScikitLearn = "3646fa90-6ef7-5e7e-9f22-8aca16db6324"
 ScikitLearnBase = "6e75b9c4-186b-50bd-896f-2d2496a4843e"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
-[compat]
-Optim = "< 0.20"
-
 [extras]
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 MLDataUtils = "cc2ba9b6-d476-5e6d-8eaf-a92d5412d41d"
