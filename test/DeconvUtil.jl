@@ -90,7 +90,7 @@ end
         # multiple smoothings return approximately same array
         smoothing = DeconvUtil.polynomial_smoothing(i)
         f_smooth  = smoothing(f_rand)
-        @test isapprox(f_smooth, smoothing(f_smooth)) # twice smoothing does not change result
+        @test isapprox(f_smooth, smoothing(f_smooth), rtol=0.01) # twice smoothing does not change result
         
     end
 end

@@ -17,13 +17,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
-DataFrames = "< 0.21"
-Discretizers = "< 4"
-Distances = "~0.8"
-MLDataUtils = "< 0.6"
-NBInclude = "< 3"
 Optim = "< 0.20"
-Polynomials = "< 0.7"
-PyCall = "< 2"
-StatsBase = "< 0.33"
-julia = "< 2"

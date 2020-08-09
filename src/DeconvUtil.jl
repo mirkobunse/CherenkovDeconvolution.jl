@@ -41,7 +41,7 @@ has probability zero. This feature is disabled by default.
 """
 function fit_pdf(x::AbstractVector{T}, bins::AbstractVector{T}=unique(x);
                  normalize::Bool=true, laplace::Bool=false) where T<:Int
-    h = fit(Histogram, x, edges(bins), closed=:left).weights
+    h = StatsBase.fit(Histogram, x, edges(bins), closed=:left).weights
     if laplace
         h = max.(h, 1)
     end
@@ -68,7 +68,7 @@ function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
     end
     
     # estimate detector response matrix
-    R = fit(Histogram, (convert(Array, x), convert(Array, y)), (edges(bins_x), edges(bins_y)), closed=:left).weights
+    R = StatsBase.fit(Histogram, (convert(Array, x), convert(Array, y)), (edges(bins_x), edges(bins_y)), closed=:left).weights
     return normalize ? normalizetransfer(R) : R
 end
 
@@ -239,7 +239,7 @@ polynomial_smoothing(o::Int=2, warn::Bool=true) =
     (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
         if o < length(f)
             # return the values of a fitted polynomial
-            _repair_smoothing( polyval(polyfit(1:length(f), f, o), 1:length(f)), warn )
+            _repair_smoothing( Polynomials.fit(Float64.(1:length(f)), f, o).(1:length(f)), warn )
         else
             throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
         end
