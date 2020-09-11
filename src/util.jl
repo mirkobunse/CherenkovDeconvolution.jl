@@ -1,24 +1,24 @@
-# 
+#
 # CherenkovDeconvolution.jl
 # Copyright 2018, 2019 Mirko Bunse
-# 
-# 
+#
+#
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
-# 
-# 
+#
+#
 # CherenkovDeconvolution.jl is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 
 __precompile__(true)
 
@@ -32,7 +32,7 @@ export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
 export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
 
 
-"""    
+"""
     fit_pdf(x[, bins]; normalize=true, laplace=false)
 
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
@@ -70,7 +70,7 @@ function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
     if length(y) != length(x)
         throw(ArgumentError("x and y have different dimensions"))
     end
-    
+
     # estimate detector response matrix
     R = fit(Histogram, (convert(Array, x), convert(Array, y)), (edges(bins_x), edges(bins_y)), closed=:left).weights
     return normalize ? normalizetransfer(R) : R
@@ -119,7 +119,7 @@ normalizepdf(a::AbstractVector...; kwargs...) =
 function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     arrs = [ a... ] # convert tuple to array
     single = length(a) == 1 # normalization of single array?
-    
+
     # check for NaNs and Infs
     nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
     if sum(nans) > 0
@@ -134,7 +134,7 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             @warn "Normalization set NaNs and Infs in $(sum(nans)) arrays to zero"
         end
     end
-    
+
     # check for negative values
     negs = [ any(arr .< 0) for arr in arrs ]
     if sum(negs) > 0
@@ -148,7 +148,7 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             @warn "Normalization set negative values in $(sum(negs)) arrays to zero"
         end
     end
-    
+
     # check for zero sums
     sums = map(sum, arrs)
     zers = map(iszero, sums)
@@ -163,13 +163,13 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             @warn "Normalization replaced $(sum(zers)) zero vectors by uniform densities"
         end
     end
-    
+
     # normalize (narrs array is created before assignment for cases where the same array is in arrs multiple times)
     narrs = [ zers[i] ? arrs[i] : arrs[i] ./ sums[i] for i in 1:length(arrs) ]
     for i in findall(.!(zers))
         arrs[i][:] .= narrs[i]
     end
-    
+
     # return tuple or single value
     if single
         return arrs[1]
@@ -182,10 +182,10 @@ end
 _DOC_COV = """
     cov_Poisson(g, N)
     cov_multinomial(g, N)
-    
+
     cov_Poisson(g)
     cov_multinomial(g)
-    
+
     cov_g(g, N = sum(g), assumption = :Poisson)
 
 Estimate the variance-covariance matrix of the bins with an observed `g`.
@@ -232,18 +232,30 @@ cov_g(g::Vector{T}, N::Integer = sum(Int64, g), assumption = :Poisson) where T<:
 
 
 """
-    polynomial_smoothing([o = 2, warn = true])
+    polynomial_smoothing([o = 2, warn = true; log_space = false, log_constant = 18394, acceptance_correction = nothing])
 
 Create a function object `f -> smoothing(f)` which smoothes its argument with a polynomial
 of order `o`. `warn` specifies if a warning is emitted when negative values returned by the
 smoothing are replaced by the average of neighboring values - a post-processing step
 proposed in [dagostini2010improved].
+If `log_space` is set the polynomial smoothing is carried out in log space, whereby an optional acceptance correction can be applied with 'acceptance_correction'.
+For a data record d 'acceptance_correction' must consist of the acceptance correction operation ac and its inverse operation inv_ac: inv_ac(ac(d)) = d. 
 """
-polynomial_smoothing(o::Int=2, warn::Bool=true) =
+polynomial_smoothing(o::Int=2, warn::Bool=true; log_space::Bool=false, log_constant::Int=18394, acceptance_correction=nothing) =
     (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
         if o < length(f)
-            # return the values of a fitted polynomial
-            _repair_smoothing( polyval(polyfit(1:length(f), f, o), 1:length(f)), warn )
+            if log_space
+                if acceptance_correction !== nothing
+                    ac, inv_ac = acceptance_correction
+                    # f is carried out into log_space; using counts intstead of probabilities
+                    f_log_smooth = polyval(polyfit(1:length(f), log.(ac(f) .* 18394 .+ 1), o), 1:length(f))
+                    return normalizepdf(inv_ac(exp.(f_log_smooth)), warn=warn)
+                end
+                f_log_smooth = polyval(polyfit(1:length(f), log.(f .* 18394 .+ 1), o), 1:length(f))
+                return normalizepdf(exp.(f_log_smooth), warn=warn)
+            else
+                _repair_smoothing( polyval(polyfit(1:length(f),f, o), 1:length(f)), warn )
+            end
         else
             throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
         end
@@ -267,6 +279,7 @@ function _repair_smoothing(f::Vector{Float64}, warn::Bool)
     end
     return normalizepdf(f, warn=warn)
 end
+
 
 
 """
@@ -294,7 +307,7 @@ want to compare the reduced result to non-reduced results.
 """
 function reduce(f::Vector{T}, factor::Int, keepdim::Bool=false;
 	            normalize::Bool=true) where T<:Number
-    
+
     # combine bins of f
     imax   = length(f) - factor + 1 # maximum edge index
     iedges = 1:factor:imax          # indices of new edges with respect to f
@@ -302,7 +315,7 @@ function reduce(f::Vector{T}, factor::Int, keepdim::Bool=false;
         iedges = vcat(iedges, imax + 1)
     end
     f_red = map(i -> sum(f[i:min(length(f), i + factor - 1)]), iedges)
-    
+
     # keep input dimension, if desired
     if !keepdim
         return normalize ? normalizepdf(f_red, warn=false) : f_red
@@ -310,7 +323,7 @@ function reduce(f::Vector{T}, factor::Int, keepdim::Bool=false;
         f_exp = vcat(map(v -> repeat([v], factor), f_red)...)[1:length(f)] # re-expand
         return normalize ? normalizepdf(f_exp) : f_exp
     end
-    
+
 end
 
 
@@ -369,4 +382,3 @@ df2X(df::AbstractDataFrame, features::AbstractVector{Symbol}=names(df)) =
 
 
 end
-
