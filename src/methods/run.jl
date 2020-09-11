@@ -1,24 +1,24 @@
-# 
+#
 # CherenkovDeconvolution.jl
 # Copyright 2018, 2019 Mirko Bunse
-# 
-# 
+#
+#
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
-# 
-# 
+#
+#
 # CherenkovDeconvolution.jl is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 """
     run(data, train, x, y[, bins_y]; kwargs...)
 
@@ -46,6 +46,12 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 1e-6`
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
+- `log_space = false`
+  determines whether regularisation is carried out into logarithmic space.
+- `log_constant = 1/18394`
+  adds a constant value to 'f' before projecting it into "log_space".
+- `acceptance_correction = nothing` 
+    is a tuple of function (ac(d), inv_ac(d)) that applies acceptance-correction ac and its inverse operation inv_ac of a dataset d.
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
@@ -78,22 +84,25 @@ run( x_data  :: AbstractVector{T},
   _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
 
 
-function run( R :: Matrix{TR},
-	          g :: Vector{Tg};
-              n_df    :: Number   = size(R, 2),
-              K       :: Int      = 100,
-              epsilon :: Float64  = 1e-6,
-              inspect :: Function = (args...) -> nothing,
+function run( R             :: Matrix{TR},
+              g             :: Vector{Tg};
+              n_df          :: Number   = size(R, 2),
+              K             :: Int      = 100,
+              epsilon       :: Float64  = 1e-6,
+              log_space     :: Bool     = false,
+              log_constant  :: Number   = 1/18394,
+              acceptance_correction     = nothing,
+              inspect       :: Function = (args...) -> nothing,
               loggingstream :: IO = devnull,
               kwargs... ) where {TR<:Number, Tg<:Number}
-    
+
     if any(g .<= 0) # limit unfolding to non-zero bins
         nonzero = g .> 0
         @warn "Limiting RUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
         g = g[nonzero]
         R = R[nonzero, :]
     end
-    
+
     # check arguments
     m = size(R, 2) # dimension of f
     if size(R, 1) != length(g)
@@ -102,16 +111,32 @@ function run( R :: Matrix{TR},
     if m > size(R, 1)
         @warn "RUN is performed on more target than observable bins - results may be unsatisfactory"
     end
-    
+
+    # set up log-regularisation and acceptance_correction
+    if acceptance_correction !== nothing
+        if log_space
+            _, inv_ac = acceptance_correction
+            a = inv_ac(ones(m))
+        else
+            @warn "Using acceptance correction requires `log_space=true`."
+            a = nothing
+        end
+    else
+        a = nothing
+    end
+    log_args = Dict{Symbol,Any}(:log_space=>log_space, :a=>a)
+
     # set up the loss function
-    l   = _maxl_l(R, g) # the objective function,
-    g_l = _maxl_g(R, g) # ..its gradient,
-    H_l = _maxl_H(R, g) # ..and its Hessian
+    l   = _maxl_l(R, g; log_args...) # the objective function,
+    g_l = _maxl_g(R, g; log_args...) # ..its gradient,
+    H_l = _maxl_H(R, g; log_args...) # ..and its Hessian
     C   = _tikhonov_binning(m) # the Tikhonov matrix (not in l and its derivatives)
-    
+
+    push!(log_args, :log_constant=>log_constant)
+
     # initial estimate is the zero vector
     f = zeros(Float64, m)
-    
+
     # the first iteration is a least squares fit
     H_lsq = _lsq_H(R, g)(f)
     if !all(isfinite.(H_lsq))
@@ -129,11 +154,11 @@ function run( R :: Matrix{TR},
         end
     end
     inspect(f, 1, NaN, NaN)
-    
+
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
     for k in 2:K
-        
+
         # gradient and Hessian at the last estimate
         g_f = g_l(f)
         H_f = H_l(f)
@@ -141,35 +166,35 @@ function run( R :: Matrix{TR},
             @warn "MaxL hessian contains Infs or NaNs - replacing these by zero"
             H_f[.!(isfinite.(H_f))] .= 0.0
         end
-        
+
         # eigendecomposition of the Hessian: H_f == U*D*U' (complex conversion required if more y than x bins)
         eigen_H = eigen(H_f)
         U = eigen_H.vectors
         D = Matrix(Diagonal(real.(complex.(eigen_H.values) .^ (-1/2)))) # D^(-1/2)
-        
+
         # eigendecomposition of transformed Tikhonov matrix: C2 == U_C*S*U_C'
         eigen_C = eigen(Symmetric( D*U' * C * U*D ))
-        
+
         # select tau (special case: no regularization if n_df == m)
         tau = n_df < m ? _tau(n_df, eigen_C.values) : 0.0
-        
-        # 
+
+        #
         # Taking a step in the transformed problem and transforming back to the actual
         # solution is numerically difficult because the eigendecomposition introduces some
-        # error. In the transformed problem, therefore only tau is chosen. The step is taken 
+        # error. In the transformed problem, therefore only tau is chosen. The step is taken
         # in the original problem instead of the commented-out solution.
-        # 
+        #
         # U_C = eigen_C.vectors
         # S   = diagm(eigen_C.values)
         # f_2 = 1/2 * inv(eye(S) + tau*S) * (U*D*U_C)' * (H_f * f - g_f)
         # f   = (U*D*U_C) * f_2
-        # 
-        g_f += _C_g(tau, C)(f) # regularized gradient
-        H_f += _C_H(tau, C)(f) # regularized Hessian
+        #
+        g_f += _C_g(tau, C; log_args...)(f) # regularized gradient
+        H_f += _C_H(tau, C; log_args...)(f) # regularized Hessian
         f += try
             - inv(H_f) * g_f
         catch err
-            
+        
             # try again with pseudo inverse
             if isa(err, SingularException) || isa(err, LAPACKException)
                 try
@@ -191,25 +216,30 @@ function run( R :: Matrix{TR},
             else
                 rethrow(err)
             end
-            
+
         end
-        
+     
         # monitor progress
-        l_now = l(f) + _C_l(tau, C)(f)
+        l_now = l(f) + _C_l(tau, C; log_args...)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
         inspect(f, k, ldiff, tau)
-        
+     
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
             @debug "RUN convergence assumed from ldiff = $ldiff < epsilon = $epsilon"
             break
         end
         l_prev = l_now
-        
+
     end
+
+    # if acceptance_correction && log_space
+    #     f = inv_ac(f)
+    # end
+
     return f
-    
+
 end
 
 # Brute-force search of a tau satisfying the n_df relation
@@ -222,12 +252,12 @@ end
 function _tau(n_df::Number, taufunction::Function, min::Float64=-.01, max::Float64=-18.0, i::Int64=2)
     taus = 10 .^ range(min, stop=max, length=1000)
     ndfs = map(taufunction, taus)
-    
+
     best = findmin(abs.(ndfs .- n_df)) # tuple from difference and index of minimum
     tau  = taus[best[2]]
     ndf  = ndfs[best[2]]
     diff = best[1]
-    
+
     if i == 1
         return tau, ndf, [ diff ] # recursive anchor
     else
@@ -241,24 +271,42 @@ end
 
 
 # objective function: negative log-likelihood
-_maxl_l(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
+_maxl_l(R::Matrix{TR}, g::AbstractVector{Tg};
+        log_space::Bool=false, a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
     f -> sum(begin
-        fj = dot(R[j,:], f)
+        if log_space && a !== nothing
+            fj = dot(R[j,:], a .* f)
+        else
+            fj = dot(R[j,:], f)
+        end
         fj - g[j]*real(log(complex(fj)))
     end for j in 1:length(g))
 
 # gradient of objective
-_maxl_g(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
-    f -> [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
-           for i in 1:length(f) ]
+_maxl_g(R::Matrix{TR}, g::AbstractVector{Tg};
+        log_space::Bool=false, a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
+    f -> begin
+        if log_space && a !== nothing
+            [ sum([ R[j,i]*a[i] - g[j]*R[j,i]*a[i] / dot(R[j,:], a .* f) for j in 1:length(g) ])
+            for i in 1:length(f) ]
+        else
+            [ sum([ R[j,i] - g[j]*R[j,i] / dot(R[j,:], f) for j in 1:length(g) ])
+            for i in 1:length(f) ]
+        end
+    end
 
 # hessian of objective
-_maxl_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
+_maxl_H(R::Matrix{TR}, g::AbstractVector{Tg};
+        log_space::Bool=false, a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
             res[i1,i2] = sum( # hessian in cell (i1,i2)
+            if log_space && a !== nothing
+                g[j]*R[j,i1]*a[i1]*R[j,i2]*a[i2] / dot(R[j,:],a .* f)^2
+            else
                 g[j]*R[j,i1]*R[j,i2] / dot(R[j,:], f)^2
+            end
             for j in 1:length(g))
         end
         Matrix(Symmetric(res)) # Matrix constructor converts symmetric result to a full matrix
@@ -287,13 +335,62 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     end
 
 # regularization term in objective function (both LSq and MaxL)
-_C_l(tau::Float64, C::Matrix{Float64}) = f -> tau/2 * dot(f, C*f)
+_C_l(tau::Float64, C::Matrix{Float64};
+     log_space::Bool=false, a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    f̄ -> begin
+        if log_space       
+            if a !== nothing
+                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)   
+                tau/2 * dot(f̄_a, C * f̄_a)
+            else
+                f̄ = map((x -> if x≈0; log_constant elseif x<0; -log(abs(x)) else log(x) end), f̄)  
+                tau/2 * dot(f̄, C * f̄)
+            end
+        else
+            tau/2 * dot(f̄, C*f̄)
+        end
+    end
 
 # regularization term in gradient of objective
-_C_g(tau::Float64, C::Matrix{Float64}) = f -> tau * C * f
+_C_g(tau::Float64, C::Matrix{Float64};
+     log_space::Bool=false, a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    f̄ -> begin
+        if log_space
+            f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
+            F = Diagonal(1 ./ f̄)
+            if a !== nothing
+                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)
+                tau * F * C * f̄_a
+            else
+                f̄ = map((x -> if x≈0; log_constant elseif x<0; -log(abs(x)) else log(x) end), f̄)
+                tau * F * C * f̄
+            end
+        else
+            tau * C * f̄
+        end
+    end
 
 # regularization term in the Hessian of objective
-_C_H(tau::Float64, C::Matrix{Float64}) = f -> tau * C
+_C_H(tau::Float64, C::Matrix{Float64};
+    log_space::Bool=false, a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    f̄ -> begin
+        if log_space
+            f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
+            F = Diagonal(1 ./ f̄)
+            ∇F = Diagonal(- 1 ./ f̄ .^2)
+            if a !== nothing
+                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)
+                tau * (∇F * C * repeat(f̄_a,1,length(f̄)) + F * C * F)
+            else
+                f̄ = map((x -> if x≈0; log_constant elseif x<0; -log(abs(x)) else log(x) end), f̄)
+                tau * (∇F * C * repeat(f̄,1,length(f̄)) + F * C * F)
+            end
+        else
+            tau * C
+        end
+    end
+
+
 
 # Construct a Tikhonov matrix for binned discretization, as given in [cowan1998statistical, p. 169].
 # This is equivalent to the notation in [blobel2002unfolding_long]!
@@ -316,3 +413,4 @@ _tikhonov_binning(m::Int) =
                   -2 => repeat([1], inner=m-2) ))
     end
 
+    
