@@ -49,6 +49,12 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 0.0`
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
+- `alpha = 1.0`
+  is the step size taken in every iteration.
+  This parameter can be either a constant value or a function with the signature
+  `(k::Int, pk::AbstractVector{Float64}, f_prev::AbstractVector{Float64} -> Float`,
+  where `f_prev` is the estimate of the previous iteration and `pk` is the direction that
+  IBU takes in the current iteration `k`.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
@@ -82,11 +88,12 @@ ibu( x_data  :: AbstractVector{T},
 
 
 function ibu( R :: Matrix{TR},
-	          g :: Vector{Tg};
+	            g :: Vector{Tg};
               f_0        :: Vector{Float64} = Float64[],
               smoothing  :: Function        = Base.identity,
               K          :: Int             = 3,
               epsilon    :: Float64         = 0.0,
+              alpha      :: Union{Float64, Function} = 1.0,
               fit_ratios :: Bool            = false,
               inspect    :: Function        = (args...) -> nothing,
               loggingstream :: IO = devnull,
@@ -103,7 +110,7 @@ function ibu( R :: Matrix{TR},
     
     # initial estimate
     f = _check_prior(f_0, size(R, 2), fit_ratios) # do not normalize if ratios are fitted
-    inspect(f, 0, NaN) # inspect prior
+    inspect(f, 0, NaN, NaN) # inspect prior
     
     # iterative Bayesian deconvolution
     for k in 1:K
@@ -120,10 +127,16 @@ function ibu( R :: Matrix{TR},
         end
         # = = = = = = = = = = = = =
         
+        # == apply stepsize update ==
+        pk = f - f_prev_smooth
+        alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev_smooth)
+        f = f_prev_smooth + alphak * pk
+        # = = = = = = = = = = = = =
+
         # monitor progress
         chi2s = DeconvUtil.chi2s(f_prev, f, false) # Chi Square distance between iterations
-        @debug "IBU iteration $k/$K (chi2s = $chi2s)"
-        inspect(f, k, chi2s)
+        @debug "IBU iteration $k/$K (chi2s = $chi2s) with alpha = $(alphak)"
+        inspect(f, k, chi2s, alphak)
         
         # stop when convergence is assumed
         if chi2s < epsilon
