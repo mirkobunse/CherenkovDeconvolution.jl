@@ -59,8 +59,8 @@ response matrix `R` and the observed density vector `g` can be given directly.
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 - `inspect = nothing`
-  is a function `(f_k::Vector, k::Int, chi2s::Float64) -> Any` optionally called in every
-  iteration.
+  is a function `(f_k::Vector, k::Int, chi2s::Float64, alpha::Float64) -> Any` optionally
+  called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
 
@@ -88,7 +88,7 @@ ibu( x_data  :: AbstractVector{T},
 
 
 function ibu( R :: Matrix{TR},
-	            g :: Vector{Tg};
+              g :: Vector{Tg};
               f_0        :: Vector{Float64} = Float64[],
               smoothing  :: Function        = Base.identity,
               K          :: Int             = 3,
