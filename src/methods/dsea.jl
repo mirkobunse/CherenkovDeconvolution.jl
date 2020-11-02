@@ -229,9 +229,9 @@ Return a `Function` object with the signature required by the `alpha` parameter 
 This object adapts the DSEA step size to the current estimate by maximizing the likelihood
 of the next estimate in the search direction of the current iteration.
 """
-function alpha_adaptive_run( x_data  :: Vector{T},
-                             x_train :: Vector{T},
-                             y_train :: Vector{T},
+function alpha_adaptive_run( x_data  :: AbstractVector{T},
+                             x_train :: AbstractVector{T},
+                             y_train :: AbstractVector{T},
                              tau     :: Number = 0.0;
                              bins_y  :: AbstractVector{T} = 1:maximum(y_train),
                              bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
@@ -264,9 +264,9 @@ Return a `Function` object with the signature required by the `alpha` parameter 
 This object adapts the DSEA step size to the current estimate by solving a least squares
 objective in the search direction of the current iteration.
 """
-function alpha_adaptive_lsq( x_data  :: Vector{T},
-                             x_train :: Vector{T},
-                             y_train :: Vector{T},
+function alpha_adaptive_lsq( x_data  :: AbstractVector{T},
+                             x_train :: AbstractVector{T},
+                             y_train :: AbstractVector{T},
                              tau     :: Number = 0.0;
                              bins_y  :: AbstractVector{T} = 1:maximum(y_train),
                              bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
