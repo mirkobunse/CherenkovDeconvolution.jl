@@ -257,6 +257,41 @@ function alpha_adaptive_run( x_data  :: Vector{T},
     end
 end
 
+"""
+    alpha_adaptive_lsq(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false])
+
+Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
+This object adapts the DSEA step size to the current estimate by solving a least squares
+objective in the search direction of the current iteration.
+"""
+function alpha_adaptive_lsq( x_data  :: Vector{T},
+                             x_train :: Vector{T},
+                             y_train :: Vector{T},
+                             tau     :: Number = 0.0;
+                             bins_y  :: AbstractVector{T} = 1:maximum(y_train),
+                             bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
+                             warn    :: Bool = false ) where T<:Int
+    # set up the discrete deconvolution problem
+    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y=bins_y, bins_x=bins_x, normalize=false), warn=warn)
+    g = DeconvUtil.fit_pdf(x_data, bins_x, normalize=false) # absolute counts instead of pdf
+
+    # set up negative log likelihood function to be minimized
+    C = _tikhonov_binning(size(R, 2))       # regularization matrix (from run.jl)
+    maxl_l = _lsq_l(R, g)                   # function of f (from run.jl)
+    maxl_C = _C_l(tau, C)                   # regularization term (from run.jl)
+    negloglike = f -> maxl_l(f) + maxl_C(f) # regularized objective function
+
+    # return step size function
+    return (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> begin
+        a_min, a_max = _alpha_range(pk, f)
+        if a_max > a_min
+            optimize(a -> negloglike(f + a * pk), a_min, a_max).minimizer # from Optim.jl
+        else
+            a_min # only one value is feasible
+        end
+    end
+end
+
 # range of admissible alpha values
 function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
     if all(pk .== 0)
