@@ -46,11 +46,12 @@ applies a classifier to obtain a confidence matrix.
 - `alpha = 1.0`
   is the step size taken in every iteration.
   This parameter can be either a constant value or a function with the signature
-  `(k::Int, pk::AbstractVector{Float64}, f_prev::AbstractVector{Float64} -> Float`,
-  where `f_prev` is the estimate of the previous iteration and `pk` is the direction that
-  DSEA takes in the current iteration `k`.
+  `(k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}, a_prev::Vector{Float64}) -> Float`,
+  where `f_prev` is the estimate of the previous iteration, `pk` is the direction that
+  DSEA takes in the current iteration `k`, and `a_prev` is the alpha value of the previous
+  iteration.
 - `smoothing = Base.identity`
-  is a function that optionally applies smoothing in between iterations
+  is a function that optionally applies smoothing in between iterations.
 - `K = 1`
   is the maximum number of iterations.
 - `epsilon = 0.0`
@@ -136,6 +137,7 @@ function _dsea(X_data        :: Array,
     
     # iterative deconvolution
     proba = Matrix{Float64}(undef, 0, 0) # empty matrix
+    alphak = Inf
     for k in 1:K
         f_prev = f
         
@@ -145,6 +147,7 @@ function _dsea(X_data        :: Array,
         f, alphak = _dsea_step( k,
                                 _recode_result(f_next, recode_dict),
                                 _recode_result(f_prev, recode_dict),
+                                alphak,
                                 alpha ) # step size function assumes original coding
         f = _check_prior(f, recode_dict) # re-code result of _dsea_step
         # = = = = = = = = = = = = = =
@@ -189,8 +192,8 @@ _dsea_reconstruct(proba::Matrix{Float64}) =
 
 # the step taken by DSEA+, where alpha may be a constant or a function
 function _dsea_step(k::Int64, f::Vector{Float64}, f_prev::Vector{Float64},
-                    alpha::Union{Float64, Function})
-    pk     = f - f_prev                                              # search direction
-    alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev) # function or float
-    return  f_prev + alphak * pk,  alphak                            # return tuple
+                    a_prev::Float64, alpha::Union{Float64, Function})
+    pk     = f - f_prev # search direction
+    alphak = typeof(alpha)==Float64 ? alpha : alpha(k, pk, f_prev, a_prev) # function or float
+    return  f_prev + alphak * pk,  alphak # return a tuple
 end

@@ -33,7 +33,7 @@ end
         alpha_const = 4 * (rand() - .5) # in [-2, 2)
         
         # test constant step size
-        f_plus, alpha_out = CherenkovDeconvolution._dsea_step(k_dummy, f, f_prev, alpha_const)
+        f_plus, alpha_out = CherenkovDeconvolution._dsea_step(k_dummy, f, f_prev, Inf, alpha_const)
         @test alpha_const == alpha_out
         @test all( f_plus .== f_prev + (f - f_prev) * alpha_const )
     end
