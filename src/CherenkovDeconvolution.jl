@@ -39,6 +39,7 @@ include("methods/svd.jl")
 include("methods/run.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
+include("methods/stepsize.jl")
 
 
 # 
