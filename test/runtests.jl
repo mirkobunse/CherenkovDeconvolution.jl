@@ -50,6 +50,6 @@ include("methods/run.jl")
 include("methods/ibu.jl")
 
 # check that no error occurs in example notebooks
-@nbinclude "../doc/getting-started.ipynb"
-@nbinclude "../doc/inspection.ipynb"
-@nbinclude "../doc/adaptive-stepsize.ipynb"
+@nbinclude "../doc/01-getting-started.ipynb"
+@nbinclude "../doc/02-inspection.ipynb"
+@nbinclude "../doc/03-adaptive-stepsize.ipynb"

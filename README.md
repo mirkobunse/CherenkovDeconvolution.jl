@@ -16,9 +16,9 @@ You can install this package with the Julia package manager (Julia-0.7 and above
 ] add CherenkovDeconvolution
 ```
 
-The [doc/ directory](https://github.com/mirkobunse/CherenkovDeconvolution.jl/tree/master/doc)
-provides you with some usage examples.
-More information is to be found on [our website](https://sfb876.tu-dortmund.de/deconvolution).
+The [doc/](https://github.com/mirkobunse/CherenkovDeconvolution.jl/tree/master/doc)
+directory provides you with some usage examples.
+More information can be found on [our website](https://sfb876.tu-dortmund.de/deconvolution).
 
 
 ## Current Status
