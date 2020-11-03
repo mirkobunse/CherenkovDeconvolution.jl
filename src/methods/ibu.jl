@@ -49,18 +49,13 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 0.0`
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
-- `alpha = 1.0`
+- `alpha = DEFAULT_STEPSIZE`
   is the step size taken in every iteration.
-  This parameter can be either a constant value or a function with the signature
-  `(k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}, a_prev::Vector{Float64}) -> Float`,
-  where `f_prev` is the estimate of the previous iteration, `pk` is the direction that
-  IBU takes in the current iteration `k`, and `a_prev` is the alpha value of the previous
-  iteration.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 - `inspect = nothing`
-  is a function `(f_k::Vector, k::Int, chi2s::Float64, alpha::Float64) -> Any` optionally
+  is a function `(f_k::Vector, k::Int, chi2s::Float64, alphak::Float64) -> Any` optionally
   called in every iteration.
 - `loggingstream = DevNull`
   is an optional `IO` stream to write log messages to.
@@ -78,7 +73,6 @@ ibu( data   :: AbstractDataFrame,
      kwargs... ) =
   ibu(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
 
-
 # Vector form
 ibu( x_data  :: AbstractVector{T},
      x_train :: AbstractVector{T},
@@ -87,14 +81,13 @@ ibu( x_data  :: AbstractVector{T},
      kwargs... ) where T<:Int =
   _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
 
-
 function ibu( R :: Matrix{TR},
               g :: Vector{Tg};
               f_0        :: Vector{Float64} = Float64[],
               smoothing  :: Function        = Base.identity,
               K          :: Int             = 3,
               epsilon    :: Float64         = 0.0,
-              alpha      :: Union{Float64, Function} = 1.0,
+              alpha      :: Stepsize        = DEFAULT_STEPSIZE,
               fit_ratios :: Bool            = false,
               inspect    :: Function        = (args...) -> nothing,
               loggingstream :: IO = devnull,
@@ -131,7 +124,7 @@ function ibu( R :: Matrix{TR},
         
         # == apply stepsize update ==
         pk = f - f_prev_smooth
-        alphak = typeof(alpha)==Float64 ? alpha : alpha(k, pk, f_prev_smooth, alphak)
+        alphak = stepsize(alpha, k, pk, f_prev_smooth, alphak)
         f = f_prev_smooth + alphak * pk
         # = = = = = = = = = = = = =
 

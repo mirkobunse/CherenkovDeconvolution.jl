@@ -26,21 +26,17 @@ using Optim: optimize # Optim required for adaptive step sizes
 
 export DeconvUtil, DeconvLearn
 export dsea, ibu, run
-export alpha_adaptive_run, alpha_adaptive_lsq, alpha_decay_exp, alpha_decay_mul
-
 
 # utility modules
 include("DeconvUtil.jl")
 include("DeconvLearn.jl")
 
-
 # deconvolution methods
 include("methods/svd.jl")
 include("methods/run.jl")
+include("methods/stepsize.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
-include("methods/stepsize.jl")
-
 
 # 
 # additional helpers
@@ -142,4 +138,3 @@ function _recode_result(proba::Matrix{Float64}, recode_dict::Dict{T, T}) where T
 end
 
 end
-

@@ -43,13 +43,8 @@ applies a classifier to obtain a confidence matrix.
 - `fixweighting = true`
   sets, whether or not the weight update fix is applied. This fix is proposed in my Master's
   thesis and in the corresponding paper.
-- `alpha = 1.0`
+- `alpha = DEFAULT_STEPSIZE`
   is the step size taken in every iteration.
-  This parameter can be either a constant value or a function with the signature
-  `(k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}, a_prev::Vector{Float64}) -> Float`,
-  where `f_prev` is the estimate of the previous iteration, `pk` is the direction that
-  DSEA takes in the current iteration `k`, and `a_prev` is the alpha value of the previous
-  iteration.
 - `smoothing = Base.identity`
   is a function that optionally applies smoothing in between iterations.
 - `K = 1`
@@ -58,7 +53,7 @@ applies a classifier to obtain a confidence matrix.
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
 - `inspect = nothing`
-  is a function `(f_k::Vector, k::Int, chi2s::Float64, alpha::Float64) -> Any` optionally
+  is a function `(f_k::Vector, k::Int, chi2s::Float64, alphak::Float64) -> Any` optionally
   called in every iteration.
 - `return_contributions = false`
   sets, whether or not the contributions of individual examples in `X_data` are returned as
@@ -80,7 +75,6 @@ dsea( data          :: AbstractDataFrame,
        bins_y;
        kwargs...) # DataFrame form
 
-
 # Vector/Matrix form
 # 
 # Here, X_data, X_train, and y_train are only converted to actual Array objects because
@@ -95,14 +89,13 @@ dsea( X_data        :: AbstractArray,
   _dsea(convert(Array, X_data), convert(Array, X_train), convert(Vector, y_train),
         train_predict, convert(Vector, bins_y); kwargs...)
 
-
 function _dsea(X_data        :: Array,
                X_train       :: Array,
                y_train       :: Vector{T},
                train_predict :: Function,
                bins_y        :: Vector{T} = 1:maximum(y_train);
                f_0           :: Vector{Float64} = Float64[],
-               alpha         :: Union{Float64, Function} = 1.0,
+               alpha         :: Stepsize = DEFAULT_STEPSIZE,
                fixweighting  :: Bool     = true,
                smoothing     :: Function = Base.identity,
                K             :: Int64    = 1,
@@ -192,8 +185,8 @@ _dsea_reconstruct(proba::Matrix{Float64}) =
 
 # the step taken by DSEA+, where alpha may be a constant or a function
 function _dsea_step(k::Int64, f::Vector{Float64}, f_prev::Vector{Float64},
-                    a_prev::Float64, alpha::Union{Float64, Function})
+                    a_prev::Float64, alpha::Stepsize)
     pk     = f - f_prev # search direction
-    alphak = typeof(alpha)==Float64 ? alpha : alpha(k, pk, f_prev, a_prev) # function or float
+    alphak = stepsize(alpha, k, pk, f_prev, a_prev) # function or float
     return  f_prev + alphak * pk,  alphak # return a tuple
 end
