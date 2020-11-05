@@ -121,7 +121,7 @@ function run( R :: Matrix{TR},
     f += try
         - inv(H_lsq) * _lsq_g(R, g)(f)
     catch err
-        if isa(err, SingularException) # pinv instead of inv only required if more y than x bins
+        if isa(err, SingularException) || isa(err, LAPACKException) # pinv instead of inv only required if more y than x bins
             @warn "LSq hessian is singular - using pseudo inverse in RUN"
             - pinv(H_lsq) * _lsq_g(R, g)(f)
         else

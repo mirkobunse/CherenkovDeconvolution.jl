@@ -1,7 +1,7 @@
 name = "CherenkovDeconvolution"
 uuid = "7995dc16-b5cc-11e8-32a0-21341f07e0b5"
 authors = ["Mirko Bunse <mirko.bunse@cs.tu-dortmund.de>"]
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
