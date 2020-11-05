@@ -133,7 +133,7 @@ function run( R :: Matrix{TR},
                 end
                 step # return update step after warning is emitted and only if computation is successful
             catch err2
-                if isa(err, LAPACKException) # same exception occurs with pinv?
+                if isa(err2, LAPACKException) # same exception occurs with pinv?
                     @warn "LAPACKException on pseudo inversion of LSq Hessian - returning a uniform estimate"
                     return ones(m) ./ m
                 else
