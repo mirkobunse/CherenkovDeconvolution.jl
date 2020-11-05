@@ -121,9 +121,25 @@ function run( R :: Matrix{TR},
     f += try
         - inv(H_lsq) * _lsq_g(R, g)(f)
     catch err
-        if isa(err, SingularException) || isa(err, LAPACKException) # pinv instead of inv only required if more y than x bins
-            @warn "LSq hessian is singular - using pseudo inverse in RUN"
-            - pinv(H_lsq) * _lsq_g(R, g)(f)
+
+        # try again with pseudo inverse
+        if isa(err, SingularException) || isa(err, LAPACKException)
+            try
+                step = - pinv(H_lsq) * _lsq_g(R, g)(f) # update step
+                if isa(err, SingularException)
+                    @warn "LSq hessian is singular - using pseudo inverse in RUN"
+                else
+                    @warn "LAPACKException on inversion of LSq Hessian - using pseudo inverse in RUN"
+                end
+                step # return update step after warning is emitted and only if computation is successful
+            catch err2
+                if isa(err, LAPACKException) # same exception occurs with pinv?
+                    @warn "LAPACKException on pseudo inversion of LSq Hessian - returning a uniform estimate"
+                    return ones(m) ./ m
+                else
+                    rethrow(err2)
+                end
+            end
         else
             rethrow(err)
         end
