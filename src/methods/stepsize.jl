@@ -84,7 +84,7 @@ function alpha_adaptive_lsq( x_data  :: AbstractVector{T},
     g = DeconvUtil.fit_pdf(x_data, bins_x, normalize=false) # absolute counts instead of pdf
 
     # set up negative log likelihood function to be minimized
-    C = _tikhonov_binning(size(R, 2))     # regularization matrix (from run.jl)
+    C = diagm(0 => ones(size(R, 2)))      # minimum-norm regularization matrix
     lsq_l = _lsq_l(R, g)                  # function of f (from run.jl)
     lsq_C = _C_l(tau, C)                  # regularization term (from run.jl)
     negloglike = f -> lsq_l(f) + lsq_C(f) # regularized objective function
