@@ -257,6 +257,38 @@ function alpha_adaptive_run( x_data  :: Vector{T},
     end
 end
 
+
+"""
+    alpha_adaptive_ibu(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false])
+
+Returns a 'function' object with the signature required by the 'alpha' parameter in 'dsea'.
+Here the DSEA step size is optimized by IBU.
+"""
+function alpha_adaptive_ibu( x_data  :: Vector{T},
+                             x_train :: Vector{T},
+                             y_train :: Vector{T};
+                             bins_y  :: AbstractVector{T} = 1:maximum(y_train),
+                             bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
+                             warn    :: Bool = false ) where T<:Int
+    # set up the discrete deconvolution problem
+    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
+    g = DeconvUtil.fit_pdf(x_data, bins_x) 
+
+    ibu_objective = (f,f_prev) -> norm(f .- _ibu_reverse_transfer(R, f_prev) * g)
+
+    # return step size function
+    return (k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}) -> begin
+        a_min, a_max = _alpha_range(pk, f_prev)
+        f_next = pk .+ f_prev  
+        f = a -> a * (f_next .- f_prev) .+ f_prev 
+        if a_max > a_min
+            optimize(a -> ibu_objective(f(a),f_prev), a_min, a_max).minimizer # from Optim.jl
+        else
+            a_min # only one value is feasible
+        end
+    end
+end
+
 # range of admissible alpha values
 function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
     if all(pk .== 0)

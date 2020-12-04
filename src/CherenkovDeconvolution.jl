@@ -26,7 +26,7 @@ using Optim: optimize # Optim required for adaptive step sizes
 
 export DeconvUtil, DeconvLearn
 export dsea, ibu, run
-export alpha_decay_exp, alpha_decay_mul, alpha_adaptive_run
+export alpha_decay_exp, alpha_decay_mul, alpha_adaptive_run, alpha_adaptive_ibu
 
 
 # utility modules
