@@ -1,6 +1,6 @@
 # 
 # CherenkovDeconvolution.jl
-# Copyright 2018, 2019 Mirko Bunse
+# Copyright 2018, 2019, 2020 Mirko Bunse
 # 
 # 
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
@@ -19,21 +19,28 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-
-__precompile__(false)
-
-module Sklearn
-
+module DeconvLearn
 
 using DataFrames, ScikitLearn, Discretizers
-using PyCall: PyObject, PyArray, pycall
-import CherenkovDeconvolution.Util
-
-@sk_import cluster : KMeans
-@sk_import tree : DecisionTreeClassifier
+using PyCall: PyObject, PyArray, pycall, pyimport
+import CherenkovDeconvolution.DeconvUtil
 
 export ClusterDiscretizer, TreeDiscretizer, KMeansDiscretizer
 export train_and_predict_proba, encode, bins
+
+
+# the following replacement for @sk_import enables precompilation
+const __KMeans = Ref{PyObject}()
+const __DecisionTreeClassifier = Ref{PyObject}()
+
+function __init__()
+    ScikitLearn.Skcore.import_sklearn() # make sure sklearn is installed
+    global __KMeans[] = pyimport("sklearn.cluster").KMeans
+    global __DecisionTreeClassifier[] = pyimport("sklearn.tree").DecisionTreeClassifier
+end
+
+KMeans(args...; kwargs...) = __KMeans[](args...; kwargs...)
+DecisionTreeClassifier(args...; kwargs...) = __DecisionTreeClassifier[](args...; kwargs...)
 
 
 """
@@ -48,7 +55,7 @@ the name of the step has to be provided like `:stepname__sample_weight`.
 """
 function train_and_predict_proba(classifier, sample_weight::Union{Symbol,Nothing}=:sample_weight)
     return (X_data::Array, X_train::Array, y_train::Vector, w_train::Vector) -> begin
-        kwargs_fit = sample_weight == nothing ? [] : [ (sample_weight, Util.normalizepdf(w_train)) ]
+        kwargs_fit = sample_weight == nothing ? [] : [ (sample_weight, DeconvUtil.normalizepdf(w_train)) ]
         ScikitLearn.fit!(classifier, X_train, y_train; kwargs_fit...)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end

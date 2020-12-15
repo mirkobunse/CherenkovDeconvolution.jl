@@ -23,7 +23,7 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `N = length(x_data)`
   is the number of observations. In the third form of the method, `N=sum(g)` is the default,
   assuming that `g` contains absolute counts, not probabilities.
-- `B = Util.cov_Poisson(g, N)`
+- `B = DeconvUtil.cov_Poisson(g, N)`
   is the varianca-covariance matrix of the observed bins. The default value represents the
   assumption that each observed bin is Poisson-distributed with rate `g[i]*N`.
 - `epsilon_C = 1e-3`
@@ -63,7 +63,7 @@ end
 function svd(R::Matrix{TR}, g::Vector{Tg};
              effective_rank::Int = -1,
              N::Int = sum(Int64, g),
-             B::Matrix{TB} = Util.cov_Poisson(g, N),
+             B::Matrix{TB} = DeconvUtil.cov_Poisson(g, N),
              epsilon_C::Float64 = 1e-3,
              fit_ratios::Bool = false,
              kwargs...) where {TR<:Number, Tg<:Number, TB<:Number}

@@ -1,8 +1,8 @@
 #
 # CherenkovDeconvolution.jl
-# Copyright 2018, 2019 Mirko Bunse
-#
-#
+# Copyright 2018, 2019, 2020 Mirko Bunse
+# 
+# 
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
 #
 #
@@ -18,12 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
-#
-
-__precompile__(true)
-
-module Util
-
+# 
+module DeconvUtil
 
 using DataFrames, Discretizers, LinearAlgebra, Polynomials, StatsBase
 
@@ -38,14 +34,14 @@ export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
 
 The result is normalized by default. If it is not normalized now, you can do so later by
-calling `Util.normalizepdf`.
+calling `DeconvUtil.normalizepdf`.
 
 Laplace correction means that at least one example is assumed in every bin, so that no bin
 has probability zero. This feature is disabled by default.
 """
 function fit_pdf(x::AbstractVector{T}, bins::AbstractVector{T}=unique(x);
                  normalize::Bool=true, laplace::Bool=false) where T<:Int
-    h = fit(Histogram, x, edges(bins), closed=:left).weights
+    h = StatsBase.fit(Histogram, x, edges(bins), closed=:left).weights
     if laplace
         h = max.(h, 1)
     end
@@ -60,7 +56,7 @@ Estimate the detector response matrix `R`, which empirically captures the transf
 integer array `y` to the integer array `x`.
 
 `R` is normalized by default so that `fit_pdf(x) == R * fit_pdf(y)`.
-If `R` is not normalized now, you can do so later calling `Util.normalizetransfer(R)`.
+If `R` is not normalized now, you can do so later calling `DeconvUtil.normalizetransfer(R)`.
 """
 function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
                bins_y::AbstractVector{T}=unique(y),
@@ -72,7 +68,7 @@ function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
     end
 
     # estimate detector response matrix
-    R = fit(Histogram, (convert(Array, x), convert(Array, y)), (edges(bins_x), edges(bins_y)), closed=:left).weights
+    R = StatsBase.fit(Histogram, (convert(Array, x), convert(Array, y)), (edges(bins_x), edges(bins_y)), closed=:left).weights
     return normalize ? normalizetransfer(R) : R
 end
 
@@ -215,17 +211,17 @@ function cov_multinomial(g::Vector{T}, N::Integer) where T<:Real
 end
 
 cov_multinomial(g::Vector{T}) where T<:Integer =
-    cov_multinomial(Util.normalizepdf(g), sum(g)) # Integer version
+    cov_multinomial(normalizepdf(g), sum(g)) # Integer version
 
 cov_g(g::Vector{T}, N::Integer = sum(Int64, g), assumption = :Poisson) where T<:Real =
     if assumption == :Poisson && eltype(g) <: Integer
-        Util.cov_Poisson(g) # counts version
+        cov_Poisson(g) # counts version
     elseif assumption == :Poisson
-        Util.cov_Poisson(g, N) # density version
+        cov_Poisson(g, N) # density version
     elseif assumption == :multinomial && eltype(g) <: Integer
-        Util.cov_multinomial(g) # counts version
+        cov_multinomial(g) # counts version
     elseif assumption == :multinomial
-        Util.cov_multinomial(g, N) # density version
+        cov_multinomial(g, N) # density version
     else
         throw(ArgumentError("assumption=$assumption must be either :Poisson or :multinomial"))
     end
@@ -238,28 +234,24 @@ Create a function object `f -> smoothing(f)` which smoothes its argument with a 
 of order `o`. `warn` specifies if a warning is emitted when negative values returned by the
 smoothing are replaced by the average of neighboring values - a post-processing step
 proposed in [dagostini2010improved].
-If `log_space` is set the polynomial smoothing is carried out in log space, whereby an optional acceptance correction can be applied with 'acceptance_correction'.
-For a data record d 'acceptance_correction' must consist of the acceptance correction operation ac and its inverse operation inv_ac: inv_ac(ac(d)) = d. 
+If 'acceptance_correction' is set, then the polynomial smoothing is evaluated with acceptance corrected f in logarithmic space. 
+'acceptance_correction' is a function object that consist of the acceptance correction operation ac and its inverse operation inv_ac: inv_ac(ac(d)) = d for a data record d. 
 """
-polynomial_smoothing(o::Int=2, warn::Bool=true; log_space::Bool=false, log_constant::Int=18394, acceptance_correction=nothing) =
+function polynomial_smoothing(o::Int=2, warn::Bool=true; log_constant::Int=18394, acceptance_correction=nothing) 
     (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
         if o < length(f)
-            if log_space
-                if acceptance_correction !== nothing
-                    ac, inv_ac = acceptance_correction
-                    # f is carried out into log_space; using counts intstead of probabilities
-                    f_log_smooth = polyval(polyfit(1:length(f), log.(ac(f) .* 18394 .+ 1), o), 1:length(f))
-                    return normalizepdf(inv_ac(exp.(f_log_smooth)), warn=warn)
-                end
-                f_log_smooth = polyval(polyfit(1:length(f), log.(f .* 18394 .+ 1), o), 1:length(f))
-                return normalizepdf(exp.(f_log_smooth), warn=warn)
+            if acceptance_correction !== nothing
+                ac, inv_ac = acceptance_correction
+                f_log_smooth = Polynomials.fit(Float64.(1:length(f)), log.(1 .+ ac(f) .* log_constant), o).(1:length(f))
+                normalizepdf(inv_ac(exp.(f_log_smooth)), warn=warn)
             else
-                _repair_smoothing( polyval(polyfit(1:length(f),f, o), 1:length(f)), warn )
+                _repair_smoothing( Polynomials.fit(Float64.(1:length(f)), f, o).(1:length(f)), warn )
             end
         else
             throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
         end
     end
+end
 
 # post-process result of polynomial_smoothing (and other smoothing functions)
 function _repair_smoothing(f::Vector{Float64}, warn::Bool)

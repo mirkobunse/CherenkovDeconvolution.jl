@@ -1,8 +1,8 @@
 #
 # CherenkovDeconvolution.jl
-# Copyright 2018, 2019 Mirko Bunse
-#
-#
+# Copyright 2018, 2019, 2020 Mirko Bunse
+# 
+# 
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
 #
 #
@@ -46,10 +46,8 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 1e-6`
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
-- `log_space = false`
-  determines whether regularisation is carried out into logarithmic space.
 - `log_constant = 1/18394`
-  adds a constant value to 'f' before projecting it into "log_space".
+  adds a constant value to 'f' before projecting it into logarithmic space.
 - `acceptance_correction = nothing` 
     is a tuple of function (ac(d), inv_ac(d)) that applies acceptance-correction ac and its inverse operation inv_ac of a dataset d.
 - `inspect = nothing`
@@ -89,7 +87,6 @@ function run( R             :: Matrix{TR},
               n_df          :: Number   = size(R, 2),
               K             :: Int      = 100,
               epsilon       :: Float64  = 1e-6,
-              log_space     :: Bool     = false,
               log_constant  :: Number   = 1/18394,
               acceptance_correction     = nothing,
               inspect       :: Function = (args...) -> nothing,
@@ -112,19 +109,14 @@ function run( R             :: Matrix{TR},
         @warn "RUN is performed on more target than observable bins - results may be unsatisfactory"
     end
 
-    # set up log-regularisation and acceptance_correction
+    # set up log-regularisation with acceptance_correction
     if acceptance_correction !== nothing
-        if log_space
-            _, inv_ac = acceptance_correction
-            a = inv_ac(ones(m))
-        else
-            @warn "Using acceptance correction requires `log_space=true`."
-            a = nothing
-        end
+        _, inv_ac = acceptance_correction
+        a = inv_ac(ones(m))
     else
         a = nothing
     end
-    log_args = Dict{Symbol,Any}(:log_space=>log_space, :a=>a)
+    log_args = Dict{Symbol,Any}(:a=>a)
 
     # set up the loss function
     l   = _maxl_l(R, g; log_args...) # the objective function,
@@ -234,7 +226,7 @@ function run( R             :: Matrix{TR},
 
     end
 
-    # if acceptance_correction && log_space
+    # if acceptance_correction
     #     f = inv_ac(f)
     # end
 
@@ -272,9 +264,9 @@ end
 
 # objective function: negative log-likelihood
 _maxl_l(R::Matrix{TR}, g::AbstractVector{Tg};
-        log_space::Bool=false, a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
+        a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
     f -> sum(begin
-        if log_space && a !== nothing
+        if a !== nothing
             fj = dot(R[j,:], a .* f)
         else
             fj = dot(R[j,:], f)
@@ -284,9 +276,9 @@ _maxl_l(R::Matrix{TR}, g::AbstractVector{Tg};
 
 # gradient of objective
 _maxl_g(R::Matrix{TR}, g::AbstractVector{Tg};
-        log_space::Bool=false, a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
+        a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
     f -> begin
-        if log_space && a !== nothing
+        if a !== nothing
             [ sum([ R[j,i]*a[i] - g[j]*R[j,i]*a[i] / dot(R[j,:], a .* f) for j in 1:length(g) ])
             for i in 1:length(f) ]
         else
@@ -297,12 +289,12 @@ _maxl_g(R::Matrix{TR}, g::AbstractVector{Tg};
 
 # hessian of objective
 _maxl_H(R::Matrix{TR}, g::AbstractVector{Tg};
-        log_space::Bool=false, a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
+        a::Union{Nothing, Vector{Ta}}=nothing) where {TR<:Number, Tg<:Number, Ta<:Number} =
     f -> begin
         res = zeros(Float64, (length(f), length(f)))
         for i1 in 1:length(f), i2 in 1:length(f)
             res[i1,i2] = sum( # hessian in cell (i1,i2)
-            if log_space && a !== nothing
+            if a !== nothing
                 g[j]*R[j,i1]*a[i1]*R[j,i2]*a[i2] / dot(R[j,:],a .* f)^2
             else
                 g[j]*R[j,i1]*R[j,i2] / dot(R[j,:], f)^2
@@ -336,16 +328,11 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
 
 # regularization term in objective function (both LSq and MaxL)
 _C_l(tau::Float64, C::Matrix{Float64};
-     log_space::Bool=false, a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
-    f̄ -> begin
-        if log_space       
-            if a !== nothing
-                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)   
-                tau/2 * dot(f̄_a, C * f̄_a)
-            else
-                f̄ = map((x -> if x≈0; log_constant elseif x<0; -log(abs(x)) else log(x) end), f̄)  
-                tau/2 * dot(f̄, C * f̄)
-            end
+     a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    f̄ -> begin   
+        if a !== nothing
+            f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)   
+            tau/2 * dot(f̄_a, C * f̄_a)
         else
             tau/2 * dot(f̄, C*f̄)
         end
@@ -353,18 +340,13 @@ _C_l(tau::Float64, C::Matrix{Float64};
 
 # regularization term in gradient of objective
 _C_g(tau::Float64, C::Matrix{Float64};
-     log_space::Bool=false, a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
     f̄ -> begin
-        if log_space
+        if a !== nothing
             f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
             F = Diagonal(1 ./ f̄)
-            if a !== nothing
-                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)
-                tau * F * C * f̄_a
-            else
-                f̄ = map((x -> if x≈0; log_constant elseif x<0; -log(abs(x)) else log(x) end), f̄)
-                tau * F * C * f̄
-            end
+            f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0.0; -(log(abs(x))) else log(x) end), f̄ .* a)
+            tau * F * C * f̄_a
         else
             tau * C * f̄
         end
@@ -372,19 +354,14 @@ _C_g(tau::Float64, C::Matrix{Float64};
 
 # regularization term in the Hessian of objective
 _C_H(tau::Float64, C::Matrix{Float64};
-    log_space::Bool=false, a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
     f̄ -> begin
-        if log_space
+        if a !== nothing
             f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
             F = Diagonal(1 ./ f̄)
             ∇F = Diagonal(- 1 ./ f̄ .^2)
-            if a !== nothing
-                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)
-                tau * (∇F * C * repeat(f̄_a,1,length(f̄)) + F * C * F)
-            else
-                f̄ = map((x -> if x≈0; log_constant elseif x<0; -log(abs(x)) else log(x) end), f̄)
-                tau * (∇F * C * repeat(f̄,1,length(f̄)) + F * C * F)
-            end
+            f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0.0; -(log(abs(x))) else log(x) end), f̄ .* a)
+            tau * (∇F * C * repeat(f̄_a,1,length(f̄)) + F * C * F)
         else
             tau * C
         end

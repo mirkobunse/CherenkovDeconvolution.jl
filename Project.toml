@@ -1,7 +1,7 @@
 name = "CherenkovDeconvolution"
 uuid = "7995dc16-b5cc-11e8-32a0-21341f07e0b5"
 authors = ["Mirko Bunse <mirko.bunse@cs.tu-dortmund.de>"]
-version = "0.1.1"
+version = "0.2.1"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -16,19 +16,15 @@ ScikitLearnBase = "6e75b9c4-186b-50bd-896f-2d2496a4843e"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-DataFrames = "< 0.21"
-Discretizers = "< 4"
-Distances = "< 0.9"
-MLDataUtils = "< 0.6"
-NBInclude = "< 3"
-Optim = "< 0.20"
-Polynomials = "< 0.7"
-PyCall = "< 2"
-ScikitLearn = "< 0.6"
-ScikitLearnBase = "< 0.6"
-StatsBase = "< 0.33"
-YAML = "< 0.4"
-julia = "< 2"
+DataFrames = "0.21"
+Discretizers = "3.2"
+Optim = "0.22, 1"
+Polynomials = "1.1"
+PyCall = "1.92"
+ScikitLearn = "0.6"
+ScikitLearnBase = "0.5"
+StatsBase = "0.33"
+julia = "1"
 
 [extras]
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
