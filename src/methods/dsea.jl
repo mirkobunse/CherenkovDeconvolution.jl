@@ -223,7 +223,7 @@ alpha_decay_mul(eta::Float64, a_1::Float64=1.0) =
     (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> a_1 * k^(eta-1)
 
 """
-    alpha_adaptive_run(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false])
+    alpha_adaptive_run(x_data, x_train, y_train[, tau=0; bins_y, bins_x, acceptance_correction=nothing, log_constant=1/18394, warn=false])
 
 Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
 This object adapts the DSEA step size to the current estimate by maximizing the likelihood
@@ -235,16 +235,26 @@ function alpha_adaptive_run( x_data  :: Vector{T},
                              tau     :: Number = 0.0;
                              bins_y  :: AbstractVector{T} = 1:maximum(y_train),
                              bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
+                             acceptance_correction= nothing,
+                             log_constant :: Number = 1/18394,
                              warn    :: Bool = false ) where T<:Int
     # set up the discrete deconvolution problem
     R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
     g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
     
+    # set up acceptance correction
+    if acceptance_correction !== nothing
+        m = size(R, 2) # dimension of f
+        _, inv_ac = acceptance_correction
+        a = inv_ac(ones(m))
+    else
+        a = nothing
+    end
     # set up negative log likelihood function to be minimized
-    C = _tikhonov_binning(size(R, 2))       # regularization matrix (from run.jl)
-    maxl_l = _maxl_l(R, g)                  # function of f (from run.jl)
-    maxl_C = _C_l(tau, C)                   # regularization term (from run.jl)
-    negloglike = f -> maxl_l(f) + maxl_C(f) # regularized objective function
+    C = _tikhonov_binning(size(R, 2))                     # regularization matrix (from run.jl)
+    maxl_l = _maxl_l(R, g)                                # function of f (from run.jl)
+    maxl_C = _C_l(tau, C; a=a, log_constant=log_constant) # regularization term (from run.jl)
+    negloglike = f -> maxl_l(f) + maxl_C(f)               # regularized objective function
     
     # return step size function
     return (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> begin
