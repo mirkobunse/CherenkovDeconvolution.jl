@@ -46,11 +46,12 @@ applies a classifier to obtain a confidence matrix.
 - `alpha = 1.0`
   is the step size taken in every iteration.
   This parameter can be either a constant value or a function with the signature
-  `(k::Int, pk::AbstractVector{Float64}, f_prev::AbstractVector{Float64} -> Float`,
-  where `f_prev` is the estimate of the previous iteration and `pk` is the direction that
-  DSEA takes in the current iteration `k`.
+  `(k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}, a_prev::Vector{Float64}) -> Float`,
+  where `f_prev` is the estimate of the previous iteration, `pk` is the direction that
+  DSEA takes in the current iteration `k`, and `a_prev` is the alpha value of the previous
+  iteration.
 - `smoothing = Base.identity`
-  is a function that optionally applies smoothing in between iterations
+  is a function that optionally applies smoothing in between iterations.
 - `K = 1`
   is the maximum number of iterations.
 - `epsilon = 0.0`
@@ -136,6 +137,7 @@ function _dsea(X_data        :: Array,
     
     # iterative deconvolution
     proba = Matrix{Float64}(undef, 0, 0) # empty matrix
+    alphak = Inf
     for k in 1:K
         f_prev = f
         
@@ -145,6 +147,7 @@ function _dsea(X_data        :: Array,
         f, alphak = _dsea_step( k,
                                 _recode_result(f_next, recode_dict),
                                 _recode_result(f_prev, recode_dict),
+                                alphak,
                                 alpha ) # step size function assumes original coding
         f = _check_prior(f, recode_dict) # re-code result of _dsea_step
         # = = = = = = = = = = = = = =
@@ -189,129 +192,8 @@ _dsea_reconstruct(proba::Matrix{Float64}) =
 
 # the step taken by DSEA+, where alpha may be a constant or a function
 function _dsea_step(k::Int64, f::Vector{Float64}, f_prev::Vector{Float64},
-                    alpha::Union{Float64, Function})
-    pk     = f - f_prev                                              # search direction
-    alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev) # function or float
-    return  f_prev + alphak * pk,  alphak                            # return tuple
+                    a_prev::Float64, alpha::Union{Float64, Function})
+    pk     = f - f_prev # search direction
+    alphak = typeof(alpha)==Float64 ? alpha : alpha(k, pk, f_prev, a_prev) # function or float
+    return  f_prev + alphak * pk,  alphak # return a tuple
 end
-
-
-"""
-    alpha_decay_exp(eta::Float64, a_1::Float64=1.0)
-
-Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
-This object reduces the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent
-iteration:
-
-    alpha = a_1 * eta^(k-1).
-"""
-alpha_decay_exp(eta::Float64, a_1::Float64=1.0) =
-    (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> a_1 * eta^(k-1)
-
-"""
-    alpha_decay_mul(eta::Float64, a_1::Float64=1.0)
-
-Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
-This object reduces the `a_1` stepsize taken in iteration 1 by `eta` in each subsequent
-iteration:
-
-    alpha = a_1 * k ^ (eta-1)
-    
-For example, eta=.5 yields alpha = 1/sqrt(k).
-"""
-alpha_decay_mul(eta::Float64, a_1::Float64=1.0) =
-    (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> a_1 * k^(eta-1)
-
-"""
-    alpha_adaptive_run(x_data, x_train, y_train[, tau=0; bins_y, bins_x, acceptance_correction=nothing, log_constant=1/18394, warn=false])
-
-Return a `Function` object with the signature required by the `alpha` parameter in `dsea`.
-This object adapts the DSEA step size to the current estimate by maximizing the likelihood
-of the next estimate in the search direction of the current iteration.
-"""
-function alpha_adaptive_run( x_data  :: Vector{T},
-                             x_train :: Vector{T},
-                             y_train :: Vector{T},
-                             tau     :: Number = 0.0;
-                             bins_y  :: AbstractVector{T} = 1:maximum(y_train),
-                             bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
-                             acceptance_correction= nothing,
-                             log_constant :: Number = 1/18394,
-                             warn    :: Bool = false ) where T<:Int
-    # set up the discrete deconvolution problem
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
-    g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
-    
-    # set up acceptance correction
-    if acceptance_correction !== nothing
-        m = size(R, 2) # dimension of f
-        _, inv_ac = acceptance_correction
-        a = inv_ac(ones(m))
-    else
-        a = nothing
-    end
-    # set up negative log likelihood function to be minimized
-    C = _tikhonov_binning(size(R, 2))                     # regularization matrix (from run.jl)
-    maxl_l = _maxl_l(R, g)                                # function of f (from run.jl)
-    maxl_C = _C_l(tau, C; a=a, log_constant=log_constant) # regularization term (from run.jl)
-    negloglike = f -> maxl_l(f) + maxl_C(f)               # regularized objective function
-    
-    # return step size function
-    return (k::Int, pk::Vector{Float64}, f::Vector{Float64}) -> begin
-        a_min, a_max = _alpha_range(pk, f)
-        if a_max > a_min
-            optimize(a -> negloglike(f + a * pk), a_min, a_max).minimizer # from Optim.jl
-        else
-            a_min # only one value is feasible
-        end
-    end
-end
-
-
-"""
-    alpha_adaptive_ibu(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false])
-
-Returns a 'function' object with the signature required by the 'alpha' parameter in 'dsea'.
-Here the DSEA step size is optimized by IBU.
-"""
-function alpha_adaptive_ibu( x_data  :: Vector{T},
-                             x_train :: Vector{T},
-                             y_train :: Vector{T};
-                             bins_y  :: AbstractVector{T} = 1:maximum(y_train),
-                             bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
-                             warn    :: Bool = false ) where T<:Int
-    # set up the discrete deconvolution problem
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y = bins_y, bins_x = bins_x, normalize=false), warn=warn)
-    g = DeconvUtil.fit_pdf(x_data, bins_x) 
-
-    ibu_objective = (f,f_prev) -> norm(f .- _ibu_reverse_transfer(R, f_prev) * g)
-
-    # return step size function
-    return (k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}) -> begin
-        a_min, a_max = _alpha_range(pk, f_prev)
-        f_next = pk .+ f_prev  
-        f = a -> a * (f_next .- f_prev) .+ f_prev 
-        if a_max > a_min
-            optimize(a -> ibu_objective(f(a),f_prev), a_min, a_max).minimizer # from Optim.jl
-        else
-            a_min # only one value is feasible
-        end
-    end
-end
-
-# range of admissible alpha values
-function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
-    if all(pk .== 0)
-        return 0., 0.
-    end # no reasonable direction
-    
-    # find alpha values for which the next estimate would be zero in one dimension
-    a_zero = - (f[pk.!=0] ./ pk[pk.!=0]) # ignore zeros in pk, for which alpha is arbitrary
-    
-    # for positive pk[i] (negative a_zero[i]), alpha has to be larger than a_zero[i]
-    # for negative pk[i] (positive a_zero[i]), alpha has to be smaller than a_zero[i]
-    a_min = maximum(vcat(a_zero[a_zero .< 0], 0)) # vcat selects a_min = 0 if no pk[i]>0 is present
-    a_max = minimum(a_zero[a_zero .>= 0])
-    return a_min, a_max
-end
-

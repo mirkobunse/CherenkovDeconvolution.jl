@@ -26,7 +26,7 @@ using Optim: optimize # Optim required for adaptive step sizes
 
 export DeconvUtil, DeconvLearn
 export dsea, ibu, run
-export alpha_decay_exp, alpha_decay_mul, alpha_adaptive_run, alpha_adaptive_ibu
+export alpha_adaptive_run, alpha_adaptive_lsq, alpha_adaptive_ibu, alpha_decay_exp, alpha_decay_mul
 
 
 # utility modules
@@ -39,6 +39,7 @@ include("methods/svd.jl")
 include("methods/run.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
+include("methods/stepsize.jl")
 
 
 # 

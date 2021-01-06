@@ -52,9 +52,10 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `alpha = 1.0`
   is the step size taken in every iteration.
   This parameter can be either a constant value or a function with the signature
-  `(k::Int, pk::AbstractVector{Float64}, f_prev::AbstractVector{Float64} -> Float`,
-  where `f_prev` is the estimate of the previous iteration and `pk` is the direction that
-  IBU takes in the current iteration `k`.
+  `(k::Int, pk::Vector{Float64}, f_prev::Vector{Float64}, a_prev::Vector{Float64}) -> Float`,
+  where `f_prev` is the estimate of the previous iteration, `pk` is the direction that
+  IBU takes in the current iteration `k`, and `a_prev` is the alpha value of the previous
+  iteration.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
@@ -113,6 +114,7 @@ function ibu( R :: Matrix{TR},
     inspect(f, 0, NaN, NaN) # inspect prior
     
     # iterative Bayesian deconvolution
+    alphak = Inf
     for k in 1:K
         
         # == smoothing in between iterations ==
@@ -129,7 +131,7 @@ function ibu( R :: Matrix{TR},
         
         # == apply stepsize update ==
         pk = f - f_prev_smooth
-        alphak = typeof(alpha) == Float64 ? alpha : alpha(k, pk, f_prev_smooth)
+        alphak = typeof(alpha)==Float64 ? alpha : alpha(k, pk, f_prev_smooth, alphak)
         f = f_prev_smooth + alphak * pk
         # = = = = = = = = = = = = =
 
