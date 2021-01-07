@@ -226,9 +226,9 @@ function run( R             :: Matrix{TR},
 
     end
 
-    # if acceptance_correction
-    #     f = inv_ac(f)
-    # end
+    if acceptance_correction !== nothing
+        f = inv_ac(f)
+    end
 
     return f
 
