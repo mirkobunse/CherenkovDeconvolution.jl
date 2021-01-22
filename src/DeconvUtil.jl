@@ -237,15 +237,33 @@ proposed in [dagostini2010improved].
 If 'acceptance_correction' is set, then the polynomial smoothing is evaluated with acceptance corrected f in logarithmic space. 
 'acceptance_correction' is a function object that consist of the acceptance correction operation ac and its inverse operation inv_ac: inv_ac(ac(d)) = d for a data record d. 
 """
-function polynomial_smoothing(o::Int=2, warn::Bool=true; log_constant::Int=18394, acceptance_correction=nothing) 
+function polynomial_smoothing(o::Int=2, warn::Bool=true; log_constant::Int=18394, log_space::Bool=false, acceptance_correction=nothing, log_wk::Bool=false) 
     (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
         if o < length(f)
-            if acceptance_correction !== nothing
+            poly = (f,d) -> Polynomials.fit(Float64.(1:length(f)), f, d).(1:length(f))
+            if acceptance_correction !== nothing 
                 ac, inv_ac = acceptance_correction
-                f_log_smooth = Polynomials.fit(Float64.(1:length(f)), log.(1 .+ ac(f) .* log_constant), o).(1:length(f))
-                normalizepdf(inv_ac(exp.(f_log_smooth)), warn=warn)
+                _f = if log_wk
+                        ac(f .+ 1/log_constant) # log probabilities
+                    else
+                        1 .+ ac(f) .* log_constant # counts
+                    end
+                if log_space
+                    _repair_smoothing(inv_ac(exp.(poly(log.(_f), o))), warn)
+                else
+                    _repair_smoothing(inv_ac(poly(_f, o)), warn)
+                end
             else
-                _repair_smoothing( Polynomials.fit(Float64.(1:length(f)), f, o).(1:length(f)), warn )
+                _f = if log_wk
+                    f .+ 1/log_constant
+                else
+                    1 .+ f .* log_constant
+                end
+                if log_space 
+                    _repair_smoothing(exp.(poly(log.(_f), o)), warn)
+                else
+                    _repair_smoothing(poly(f, o), warn ) # default
+                end
             end
         else
             throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
