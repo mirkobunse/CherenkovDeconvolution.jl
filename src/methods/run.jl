@@ -216,7 +216,11 @@ function run( R             :: Matrix{TR},
         l_now = l(f) + _C_l(tau, C; log_args...)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
-        inspect(f, k, ldiff, tau)
+        if acceptance_correction !== nothing
+            inspect(inv_ac(f), k, ldiff, tau)
+        else
+            inspect(f, k, ldiff, tau)
+        end
      
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -228,7 +232,7 @@ function run( R             :: Matrix{TR},
     end
 
     if acceptance_correction !== nothing
-       f = inv_ac(f)
+        return inv_ac(f)
     end
 
     return f
