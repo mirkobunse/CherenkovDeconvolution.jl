@@ -46,8 +46,6 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 1e-6`
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
-- `log_constant = 1/18394`
-  adds a constant value to 'f' before projecting it into logarithmic space.
 - `acceptance_correction = nothing` 
     is a tuple of function (ac(d), inv_ac(d)) that applies acceptance-correction ac and its inverse operation inv_ac of a dataset d.
 - `inspect = nothing`
@@ -87,9 +85,7 @@ function run( R             :: Matrix{TR},
               n_df          :: Number   = size(R, 2),
               K             :: Int      = 100,
               epsilon       :: Float64  = 1e-6,
-              log_constant  :: Number   = 1/18394,
               acceptance_correction     = nothing,
-              log_space     :: Bool     = false,
               inspect       :: Function = (args...) -> nothing,
               loggingstream :: IO = devnull,
               kwargs... ) where {TR<:Number, Tg<:Number}
@@ -123,9 +119,8 @@ function run( R             :: Matrix{TR},
     l   = _maxl_l(R, g; log_args...) # the objective function,
     g_l = _maxl_g(R, g; log_args...) # ..its gradient,
     H_l = _maxl_H(R, g; log_args...) # ..and its Hessian
-    C   = _tikhonov_binning(m) # the Tikhonov matrix (not in l and its derivatives)
+    C   = _tikhonov_binning(m) # the Tikhonov matrix (not in l and its derivatives)    
 
-    push!(log_args, :log_constant=>log_constant, :log_space=>log_space)
 
     # initial estimate is the zero vector
     f = zeros(Float64, m)
@@ -333,72 +328,35 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
 
 # regularization term in objective function (both LSq and MaxL)
 _C_l(tau::Float64, C::Matrix{Float64};
-     a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394, log_space=false) =
+     a::Union{Nothing, Vector{Float64}}=nothing) =
     f̄ -> begin   
         if a !== nothing
-            if log_space
-                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄ .* a)   
-                tau/2 * dot(f̄_a, C * f̄_a)
-            else
-                f̄_a = f̄ .* a
-                tau/2 * dot(f̄_a, C * f̄_a)
-            end
+            f̄_a = f̄ .* a
+            tau/2 * dot(f̄_a, C * f̄_a)
         else
-            if log_space
-                f̄_log = map((x -> if x≈0.0; log(log_constant) elseif x<0; -(log(abs(x))) else log(x) end), f̄) 
-                tau/2 * dot(f̄_log, C*f̄_log)
-            else
-                tau/2 * dot(f̄, C*f̄)
-            end
+            tau/2 * dot(f̄, C*f̄)
         end
     end
 
 # regularization term in gradient of objective
 _C_g(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394, log_space=false) =
+    a::Union{Nothing, Vector{Float64}}=nothing) =
     f̄ -> begin
         if a !== nothing
-            if log_space
-                f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
-                F = Diagonal(1 ./ f̄)
-                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0.0; -(log(abs(x))) else log(x) end), f̄ .* a)
-                tau * F * C * f̄_a
-            else
-                tau * Diagonal(a) * C * (a .* f̄)
-            end
+            tau * Diagonal(a) * C * (a .* f̄)
         else
-            if log_space
-                f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
-                tau * Diagonal(1 ./ f̄) * C * f̄
-            else
-                tau * C * f̄
-            end  
+            tau * C * f̄
         end
     end
 
 # regularization term in the Hessian of objective
 _C_H(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394, log_space=false) =
+    a::Union{Nothing, Vector{Float64}}=nothing) =
     f̄ -> begin
         if a !== nothing
-            if log_space
-                f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
-                F = Diagonal(1 ./ f̄)
-                ∇F = Diagonal(- 1 ./ f̄ .^2)
-                f̄_a = map((x -> if x≈0.0; log(log_constant) elseif x<0.0; -(log(abs(x))) else log(x) end), f̄ .* a)
-                tau * (∇F * C * repeat(f̄_a,1,length(f̄)) + F * C * F)
-            else
-                tau * Diagonal(a) * C * Diagonal(a)
-            end
-        else
-            if log_space
-                f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
-                ∇F = Diagonal(- 1 ./ f̄ .^2)
-                F = Diagonal(1 ./ f̄)
-                tau * (∇F * C * repeat(f̄,1,length(f̄)) + F * C * F)
-            else
-                tau * C
-            end
+            tau * Diagonal(a) * C * Diagonal(a)
+        else        
+            tau * C
         end
     end
 
