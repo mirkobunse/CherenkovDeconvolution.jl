@@ -45,7 +45,7 @@ response matrix `R` and the observed density vector `g` can be given directly.
   absolute loss difference drops below `epsilon`.
 - `tau = 0.0` 
    determines the regularisation strength.
-- `x0 = 1.0`
+- `x0 = fill(1.0, size(R, 2))`
    Starting point for the interior-point Newton optimization
 - `acceptance_correction = nothing` 
   is a tuple of functions (ac(d), inv_ac(d)) representing the acceptance correction
@@ -92,7 +92,7 @@ function p_run( R :: Matrix{TR},
             K       :: Int      = 100,
             epsilon :: Float64  = 1e-6,
             tau     :: Float64  = 0.0, 
-            x0      :: Float64  = 1.0, 
+            x0      :: Vector{Float64}  = fill(1.0, size(R, 2)), 
             acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
             ac_regularisation :: Bool = true, 
             evaluate_ac_spectrum ::Bool = true, 
