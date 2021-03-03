@@ -46,6 +46,14 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 1e-6`
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
+- `acceptance_correction = nothing` 
+    is a tuple of functions (ac(d), inv_ac(d)) representing the acceptance correction
+    ac and its inverse operation inv_ac for a data set d.
+- `ac_regularisation = true` 
+   decides whether acceptance correction is taken into account for regularisation.
+   Requires `acceptance_correction` != nothing.
+- `evaluate_ac_spectrum = true`
+   decides whether spectrums will be acceptance corrected. Requires `acceptance_correction` != nothing. 
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
@@ -83,6 +91,9 @@ function run( R :: Matrix{TR},
               n_df    :: Number   = size(R, 2),
               K       :: Int      = 100,
               epsilon :: Float64  = 1e-6,
+              acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing, 
+              ac_regularisation :: Bool = true, 
+              evaluate_ac_spectrum ::Bool = true, 
               inspect :: Function = (args...) -> nothing,
               loggingstream :: IO = devnull,
               kwargs... ) where {TR<:Number, Tg<:Number}
@@ -102,12 +113,31 @@ function run( R :: Matrix{TR},
     if m > size(R, 1)
         @warn "RUN is performed on more target than observable bins - results may be unsatisfactory"
     end
-    
+
     # set up the loss function
     l   = _maxl_l(R, g) # the objective function,
     g_l = _maxl_g(R, g) # ..its gradient,
     H_l = _maxl_H(R, g) # ..and its Hessian
     C   = _tikhonov_binning(m) # the Tikhonov matrix (not in l and its derivatives)
+
+     # set up acceptance correction
+    if acceptance_correction !== nothing
+        ac, inv_ac = acceptance_correction
+        if ac_regularisation
+          a = inv_ac(ones(m))
+        else
+          a = nothing
+        end
+    else
+        if evaluate_ac_spectrum
+          @warn "Spectrum cannot be acceptance corrected because acceptance_correction object is not given"
+          evaluate_ac_spectrum = false
+        elseif ac_regularisation
+          @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+          ac_regularisation = false
+        end
+        a = nothing
+    end
     
     # initial estimate is the zero vector
     f = zeros(Float64, m)
@@ -128,8 +158,12 @@ function run( R :: Matrix{TR},
             rethrow(err)
         end
     end
-    inspect(f, 1, NaN, NaN)
-    
+    if evaluate_ac_spectrum
+        inspect(ac(f), 1, NaN, NaN)
+    else
+        inspect(f, 1, NaN, NaN)
+    end
+
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
     for k in 2:K
@@ -164,8 +198,8 @@ function run( R :: Matrix{TR},
         # f_2 = 1/2 * inv(eye(S) + tau*S) * (U*D*U_C)' * (H_f * f - g_f)
         # f   = (U*D*U_C) * f_2
         # 
-        g_f += _C_g(tau, C)(f) # regularized gradient
-        H_f += _C_H(tau, C)(f) # regularized Hessian
+        g_f += _C_g(tau, C; a)(f) # regularized gradient
+        H_f += _C_H(tau, C; a)(f) # regularized Hessian
         f += try
             - inv(H_f) * g_f
         catch err
@@ -195,10 +229,14 @@ function run( R :: Matrix{TR},
         end
         
         # monitor progress
-        l_now = l(f) + _C_l(tau, C)(f)
+        l_now = l(f) + _C_l(tau, C; a)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
-        inspect(f, k, ldiff, tau)
+        if evaluate_ac_spectrum
+            inspect(ac(f), k, ldiff, tau)
+        else
+            inspect(f, k, ldiff, tau)
+        end
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -208,8 +246,12 @@ function run( R :: Matrix{TR},
         l_prev = l_now
         
     end
-    return f
-    
+    if evaluate_ac_spectrum
+        return ac(f)
+    else
+        return f
+    end
+
 end
 
 # Brute-force search of a tau satisfying the n_df relation
@@ -244,7 +286,11 @@ end
 _maxl_l(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     f -> sum(begin
         fj = dot(R[j,:], f)
-        fj - g[j]*real(log(complex(fj)))
+        if fj > 0.0
+            fj - g[j]*log(fj)
+        else 
+            -Inf
+        end
     end for j in 1:length(g))
 
 # gradient of objective
@@ -287,13 +333,38 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
     end
 
 # regularization term in objective function (both LSq and MaxL)
-_C_l(tau::Float64, C::Matrix{Float64}) = f -> tau/2 * dot(f, C*f)
+_C_l(tau::Float64, C::Matrix{Float64};
+     a::Union{Nothing, Vector{Float64}}=nothing) =
+    f̄ -> begin   
+        if a !== nothing
+            f̄_a = f̄ .* a
+            tau/2 * dot(f̄_a, C * f̄_a)
+        else
+            tau/2 * dot(f̄, C*f̄)
+        end
+    end
 
 # regularization term in gradient of objective
-_C_g(tau::Float64, C::Matrix{Float64}) = f -> tau * C * f
+_C_g(tau::Float64, C::Matrix{Float64};
+    a::Union{Nothing, Vector{Float64}}=nothing) =
+    f̄ -> begin
+        if a !== nothing
+            tau * Diagonal(a) * C * (a .* f̄)
+        else
+            tau * C * f̄
+        end
+    end
 
 # regularization term in the Hessian of objective
-_C_H(tau::Float64, C::Matrix{Float64}) = f -> tau * C
+_C_H(tau::Float64, C::Matrix{Float64};
+    a::Union{Nothing, Vector{Float64}}=nothing) =
+    f̄ -> begin
+        if a !== nothing
+            tau * Diagonal(a) * C * Diagonal(a)
+        else        
+            tau * C
+        end
+    end
 
 # Construct a Tikhonov matrix for binned discretization, as given in [cowan1998statistical, p. 169].
 # This is equivalent to the notation in [blobel2002unfolding_long]!
