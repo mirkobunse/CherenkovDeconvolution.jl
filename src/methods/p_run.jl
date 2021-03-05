@@ -27,7 +27,7 @@
     p_run(R, g; kwargs...)
 
 
-Deconvolve the observed data applying the *Regularized Unfolding* trained on the given
+Deconvolve the observed data applying the *positive Regularized Unfolding* trained on the given
 training set.
 
 The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
@@ -44,15 +44,17 @@ response matrix `R` and the observed density vector `g` can be given directly.
   is the minimum difference in the loss function between iterations. p_RUN stops when the
   absolute loss difference drops below `epsilon`.
 - `tau = 0.0` 
-   determines the regularisation strength.
+  determines the regularisation strength.
 - `x0 = fill(1.0, size(R, 2))`
-   Starting point for the interior-point Newton optimization
+  Starting point for the interior-point Newton optimization
 - `acceptance_correction = nothing` 
   is a tuple of functions (ac(d), inv_ac(d)) representing the acceptance correction
   ac and its inverse operation inv_ac for a data set d.
 - `ac_regularisation = true` 
-   decides whether acceptance correction is taken into account for regularisation.
-   Requires `acceptance_correction` != nothing.
+  decides whether acceptance correction is taken into account for regularisation.
+  Requires `acceptance_correction` != nothing.
+- `log_constant = 1/18394`
+  is a selectable constant used in log regularisation to prevent the undefined case log(0).
 - `evaluate_ac_spectrum = true`
   decides whether spectrums will be acceptance corrected. Requires `acceptance_correction` != nothing. 
 - `inspect = nothing`
@@ -92,10 +94,11 @@ function p_run( R :: Matrix{TR},
             K       :: Int      = 100,
             epsilon :: Float64  = 1e-6,
             tau     :: Float64  = 0.0, 
-            x0      :: Vector{Float64}  = fill(1.0, size(R, 2)), 
+            x0      :: Vector{Float64} = fill(1.0, size(R, 2)), 
             acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
-            ac_regularisation :: Bool = true, 
-            evaluate_ac_spectrum ::Bool = true, 
+            ac_regularisation     :: Bool    = true, 
+            log_constant          :: Float64 = 1/18394,
+            evaluate_ac_spectrum  :: Bool    = true, 
             inspect :: Function = (args...) -> nothing,
             loggingstream :: IO = devnull,
             kwargs... ) where {TR<:Number, Tg<:Number}
@@ -138,13 +141,13 @@ function p_run( R :: Matrix{TR},
     # set up regularized loss function
     C = _tikhonov_binning(m)
     l = _maxl_l(R,g) 
-    C_l = _C_l(tau,C; a)
+    C_l = _C_l(tau,C; a=a, log_constant=log_constant)
     l_reg = f -> l(f) + C_l(f)
     
     # regularized gradient
     g!(G, x) = begin     
       grad_l = _maxl_g(R, g)(x)
-      grad_C = _C_g(tau, C; a)(x)
+      grad_C = _C_g(tau, C; a=a, log_constant=log_constant)(x)
       grad_reg = grad_l .+ grad_C
       for j=1:12 
         G[j] = grad_reg[j]
@@ -154,7 +157,7 @@ function p_run( R :: Matrix{TR},
     # regularized Hessian
     h!(H, x) = begin 
       hess_l = _maxl_H(R,g)(x)
-      hess_C = _C_H(tau, C; a)(x)
+      hess_C = _C_H(tau, C; a=a, log_constant=log_constant)(x)
       hess_reg = hess_l .+ hess_C
       J,K = size(H)
       for j=1:J, k=1:K

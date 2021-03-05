@@ -47,13 +47,15 @@ response matrix `R` and the observed density vector `g` can be given directly.
   is the minimum difference in the loss function between iterations. RUN stops when the
   absolute loss difference drops below `epsilon`.
 - `acceptance_correction = nothing` 
-    is a tuple of functions (ac(d), inv_ac(d)) representing the acceptance correction
-    ac and its inverse operation inv_ac for a data set d.
+  is a tuple of functions (ac(d), inv_ac(d)) representing the acceptance correction
+  ac and its inverse operation inv_ac for a data set d.
 - `ac_regularisation = true` 
-   decides whether acceptance correction is taken into account for regularisation.
-   Requires `acceptance_correction` != nothing.
+  decides whether acceptance correction is taken into account for regularisation.
+  Requires `acceptance_correction` != nothing.
+- `log_constant = 1/18394`
+  is a selectable constant used in log regularisation to prevent the undefined case log(0).
 - `evaluate_ac_spectrum = true`
-   decides whether spectrums will be acceptance corrected. Requires `acceptance_correction` != nothing. 
+  decides whether spectrums will be acceptance corrected. Requires `acceptance_correction` != nothing. 
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
@@ -92,9 +94,9 @@ function run( R :: Matrix{TR},
               K       :: Int      = 100,
               epsilon :: Float64  = 1e-6,
               acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing, 
-              ac_regularisation :: Bool = true, 
-              log_constant :: Number = 1/18394,
-              evaluate_ac_spectrum ::Bool = true, 
+              ac_regularisation     :: Bool    = true, 
+              log_constant          :: Float64 = 1/18394,
+              evaluate_ac_spectrum  :: Bool    = true, 
               inspect :: Function = (args...) -> nothing,
               loggingstream :: IO = devnull,
               kwargs... ) where {TR<:Number, Tg<:Number}
@@ -199,8 +201,8 @@ function run( R :: Matrix{TR},
         # f_2 = 1/2 * inv(eye(S) + tau*S) * (U*D*U_C)' * (H_f * f - g_f)
         # f   = (U*D*U_C) * f_2
         # 
-        g_f += _C_g(tau, C; a)(f) # regularized gradient
-        H_f += _C_H(tau, C; a)(f) # regularized Hessian
+        g_f += _C_g(tau, C; a=a, log_constant=log_constant)(f) # regularized gradient
+        H_f += _C_H(tau, C; a=a, log_constant=log_constant)(f) # regularized Hessian
         f += try
             - inv(H_f) * g_f
         catch err
@@ -230,7 +232,7 @@ function run( R :: Matrix{TR},
         end
         
         # monitor progress
-        l_now = l(f) + _C_l(tau, C; a)(f)
+        l_now = l(f) + _C_l(tau, C; a=a, log_constant=log_constant)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
         if evaluate_ac_spectrum
@@ -335,7 +337,7 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
 
 # regularization term in objective function (both LSq and MaxL)
 _C_l(tau::Float64, C::Matrix{Float64};
-     a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Number=18394) =
+     a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
     f̄ -> begin   
         if a !== nothing
             f̄_a = a .* max.(f̄, log_constant)
@@ -347,7 +349,7 @@ _C_l(tau::Float64, C::Matrix{Float64};
 
 # regularization term in gradient of objective
 _C_g(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
     f̄ -> begin
         if a !== nothing
             f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
@@ -360,7 +362,7 @@ _C_g(tau::Float64, C::Matrix{Float64};
 
 # regularization term in the Hessian of objective
 _C_H(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
+    a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
     f̄ -> begin
         if a !== nothing
             f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
