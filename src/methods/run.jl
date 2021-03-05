@@ -93,6 +93,7 @@ function run( R :: Matrix{TR},
               epsilon :: Float64  = 1e-6,
               acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing, 
               ac_regularisation :: Bool = true, 
+              log_constant :: Number = 1/18394,
               evaluate_ac_spectrum ::Bool = true, 
               inspect :: Function = (args...) -> nothing,
               loggingstream :: IO = devnull,
@@ -334,11 +335,11 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
 
 # regularization term in objective function (both LSq and MaxL)
 _C_l(tau::Float64, C::Matrix{Float64};
-     a::Union{Nothing, Vector{Float64}}=nothing) =
+     a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Number=18394) =
     f̄ -> begin   
         if a !== nothing
-            f̄_a = f̄ .* a
-            tau/2 * dot(f̄_a, C * f̄_a)
+            f̄_a = a .* max.(f̄, log_constant)
+            tau/2 * dot(log.(f̄_a), C * log.(f̄_a))
         else
             tau/2 * dot(f̄, C*f̄)
         end
@@ -346,10 +347,12 @@ _C_l(tau::Float64, C::Matrix{Float64};
 
 # regularization term in gradient of objective
 _C_g(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing) =
+    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
     f̄ -> begin
         if a !== nothing
-            tau * Diagonal(a) * C * (a .* f̄)
+            f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
+            F = Diagonal(1 ./ f̄)
+            tau * F * C * a .* f̄
         else
             tau * C * f̄
         end
@@ -357,10 +360,13 @@ _C_g(tau::Float64, C::Matrix{Float64};
 
 # regularization term in the Hessian of objective
 _C_H(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing) =
+    a::Union{Nothing, Vector{Float64}}=nothing, log_constant=1/18394) =
     f̄ -> begin
         if a !== nothing
-            tau * Diagonal(a) * C * Diagonal(a)
+            f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
+            H = tau .* C ./ (f̄ * transpose(f̄))
+            H[diagind(H)] .= diag( - tau .* C * (repeat(log.(a .* max.(f̄,log_constant)), 1, length(f̄)) - diagm(ones(length(f̄)))) ./ f̄ .^2)
+            return H
         else        
             tau * C
         end
