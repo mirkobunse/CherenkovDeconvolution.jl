@@ -352,9 +352,10 @@ _C_g(tau::Float64, C::Matrix{Float64};
     a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
     f̄ -> begin
         if a !== nothing
-            f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
-            F = Diagonal(1 ./ f̄)
-            tau * F * C * a .* f̄
+            f̄_d = map(x -> x<=0.0 ? 0.0 : 1/x, f̄)
+            F = Diagonal(f̄_d)
+            f̄ = map((x -> if x<=0.0; log_constant else x end), f̄)
+            tau * F * C * log.(a .* f̄)
         else
             tau * C * f̄
         end
@@ -365,9 +366,13 @@ _C_H(tau::Float64, C::Matrix{Float64};
     a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
     f̄ -> begin
         if a !== nothing
-            f̄ = map((x -> if x≈0.0; log_constant else x end), f̄)
+            f̄ = max.(f̄, 0.0)
             H = tau .* C ./ (f̄ * transpose(f̄))
             H[diagind(H)] .= diag( - tau .* C * (repeat(log.(a .* max.(f̄,log_constant)), 1, length(f̄)) - diagm(ones(length(f̄)))) ./ f̄ .^2)
+            if !all(isfinite.(H))
+                @warn "regularized hessian contains Infs or NaNs - replacing these by zero"
+                H[.!(isfinite.(H))] .= 0.0
+            end
             return H
         else        
             tau * C
