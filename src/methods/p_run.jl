@@ -55,8 +55,6 @@ response matrix `R` and the observed density vector `g` can be given directly.
   Requires `acceptance_correction` != nothing.
 - `log_constant = 1/18394`
   is a selectable constant used in log regularisation to prevent the undefined case log(0).
-- `evaluate_ac_spectrum = true`
-  decides whether spectrums will be acceptance corrected. Requires `acceptance_correction` != nothing. 
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64) -> Any` optionally
   called in every iteration.
@@ -98,7 +96,6 @@ function p_run( R :: Matrix{TR},
             acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
             ac_regularisation     :: Bool    = true, 
             log_constant          :: Float64 = 1/18394,
-            evaluate_ac_spectrum  :: Bool    = true, 
             inspect :: Function = (args...) -> nothing,
             loggingstream :: IO = devnull,
             kwargs... ) where {TR<:Number, Tg<:Number}
@@ -119,35 +116,32 @@ function p_run( R :: Matrix{TR},
         @warn "p_RUN is performed on more target than observable m - results may be unsatisfactory"
     end
 
-     # set up acceptance correction
+      # set up acceptance correction
     if acceptance_correction !== nothing
-        ac, inv_ac = acceptance_correction
-        if ac_regularisation
-          a = inv_ac(ones(m))
-        else
-          a = nothing
-        end
-    else
-        if evaluate_ac_spectrum
-          @warn "Spectrum cannot be acceptance corrected because acceptance_correction object is not given"
-          evaluate_ac_spectrum = false
-        elseif ac_regularisation
-          @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
-          ac_regularisation = false
-        end
+      ac, inv_ac = acceptance_correction
+      if ac_regularisation
+        a = inv_ac(ones(m))
+      else
         a = nothing
+      end
+    else
+      if ac_regularisation
+        @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+        ac_regularisation = false
+      end
+      a = nothing
     end
     
     # set up regularized loss function
     C = _tikhonov_binning(m)
     l = _maxl_l(R,g) 
-    C_l = _C_l(tau,C; a=a, log_constant=log_constant)
+    C_l = _C_l(tau,C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)
     l_reg = f -> l(f) + C_l(f)
     
     # regularized gradient
     g!(G, x) = begin     
       grad_l = _maxl_g(R, g)(x)
-      grad_C = _C_g(tau, C; a=a, log_constant=log_constant)(x)
+      grad_C = _C_g(tau, C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)(x)
       grad_reg = grad_l .+ grad_C
       for j=1:12 
         G[j] = grad_reg[j]
@@ -157,7 +151,7 @@ function p_run( R :: Matrix{TR},
     # regularized Hessian
     h!(H, x) = begin 
       hess_l = _maxl_H(R,g)(x)
-      hess_C = _C_H(tau, C; a=a, log_constant=log_constant)(x)
+      hess_C = _C_H(tau, C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)(x)
       hess_reg = hess_l .+ hess_C
       J,K = size(H)
       for j=1:J, k=1:K
@@ -176,7 +170,7 @@ function p_run( R :: Matrix{TR},
                         store_trace = true,
                         extended_trace = true,
                         successive_f_tol = 2)
-
+                        
     res = optimize(df, dfc, x0, IPNewton(), conf)
 
     # evaluation
@@ -184,12 +178,7 @@ function p_run( R :: Matrix{TR},
     f = Optim.x_trace(res)
     k = Optim.iterations(res)
     
-    if evaluate_ac_spectrum
-      inspect.(ac.(f), collect(0:k), epsilon)
-      return ac(f[k])
-    else
-      inspect.(f, collect(0:k), epsilon)
-      return f[k]
-    end
- 
+    inspect.(f, collect(0:k), epsilon)
+    return f[k]
+
   end

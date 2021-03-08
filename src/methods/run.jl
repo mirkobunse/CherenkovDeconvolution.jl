@@ -54,8 +54,6 @@ response matrix `R` and the observed density vector `g` can be given directly.
   Requires `acceptance_correction` != nothing.
 - `log_constant = 1/18394`
   is a selectable constant used in log regularisation to prevent the undefined case log(0).
-- `evaluate_ac_spectrum = true`
-  decides whether spectrums will be acceptance corrected. Requires `acceptance_correction` != nothing. 
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
@@ -96,7 +94,6 @@ function run( R :: Matrix{TR},
               acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing, 
               ac_regularisation     :: Bool    = true, 
               log_constant          :: Float64 = 1/18394,
-              evaluate_ac_spectrum  :: Bool    = true, 
               inspect :: Function = (args...) -> nothing,
               loggingstream :: IO = devnull,
               kwargs... ) where {TR<:Number, Tg<:Number}
@@ -132,10 +129,7 @@ function run( R :: Matrix{TR},
           a = nothing
         end
     else
-        if evaluate_ac_spectrum
-          @warn "Spectrum cannot be acceptance corrected because acceptance_correction object is not given"
-          evaluate_ac_spectrum = false
-        elseif ac_regularisation
+        if ac_regularisation
           @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
           ac_regularisation = false
         end
@@ -161,12 +155,8 @@ function run( R :: Matrix{TR},
             rethrow(err)
         end
     end
-    if evaluate_ac_spectrum
-        inspect(ac(f), 1, NaN, NaN)
-    else
-        inspect(f, 1, NaN, NaN)
-    end
-
+    inspect(f, 1, NaN, NaN)
+    
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
     for k in 2:K
@@ -235,11 +225,7 @@ function run( R :: Matrix{TR},
         l_now = l(f) + _C_l(tau, C; a=a, log_constant=log_constant)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
-        if evaluate_ac_spectrum
-            inspect(ac(f), k, ldiff, tau)
-        else
-            inspect(f, k, ldiff, tau)
-        end
+        inspect(f, k, ldiff, tau)
         
         # stop when convergence is assumed
         if abs(ldiff) < epsilon
@@ -249,12 +235,8 @@ function run( R :: Matrix{TR},
         l_prev = l_now
         
     end
-    if evaluate_ac_spectrum
-        return ac(f)
-    else
-        return f
-    end
-
+    return f
+    
 end
 
 # Brute-force search of a tau satisfying the n_df relation
@@ -337,9 +319,9 @@ _lsq_H(R::Matrix{TR}, g::AbstractVector{Tg}) where {TR<:Number, Tg<:Number} =
 
 # regularization term in objective function (both LSq and MaxL)
 _C_l(tau::Float64, C::Matrix{Float64};
-     a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
+     a::Union{Nothing, Vector{Float64}}=nothing, ac_regularisation::Bool=true, log_constant::Float64=1/18394) =
     f̄ -> begin   
-        if a !== nothing
+        if ac_regularisation && a !== nothing 
             f̄_a = a .* max.(f̄, log_constant)
             tau/2 * dot(log.(f̄_a), C * log.(f̄_a))
         else
@@ -349,9 +331,9 @@ _C_l(tau::Float64, C::Matrix{Float64};
 
 # regularization term in gradient of objective
 _C_g(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
+    a::Union{Nothing, Vector{Float64}}=nothing, ac_regularisation::Bool=true, log_constant::Float64=1/18394) =
     f̄ -> begin
-        if a !== nothing
+        if ac_regularisation && a !== nothing 
             f̄_d = map(x -> x<=0.0 ? 0.0 : 1/x, f̄)
             F = Diagonal(f̄_d)
             f̄ = map((x -> if x<=0.0; log_constant else x end), f̄)
@@ -363,9 +345,9 @@ _C_g(tau::Float64, C::Matrix{Float64};
 
 # regularization term in the Hessian of objective
 _C_H(tau::Float64, C::Matrix{Float64};
-    a::Union{Nothing, Vector{Float64}}=nothing, log_constant::Float64=1/18394) =
+    a::Union{Nothing, Vector{Float64}}=nothing, ac_regularisation::Bool=true, log_constant::Float64=1/18394) =
     f̄ -> begin
-        if a !== nothing
+        if ac_regularisation && a !== nothing 
             f̄ = max.(f̄, 0.0)
             H = tau .* C ./ (f̄ * transpose(f̄))
             H[diagind(H)] .= diag( - tau .* C * (repeat(log.(a .* max.(f̄,log_constant)), 1, length(f̄)) - diagm(ones(length(f̄)))) ./ f̄ .^2)
