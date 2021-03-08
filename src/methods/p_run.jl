@@ -118,18 +118,18 @@ function p_run( R :: Matrix{TR},
 
       # set up acceptance correction
     if acceptance_correction !== nothing
-      ac, inv_ac = acceptance_correction
-      if ac_regularisation
-        a = inv_ac(ones(m))
-      else
-        a = nothing
-      end
+        ac, inv_ac = acceptance_correction
+        if ac_regularisation
+            a = inv_ac(ones(m))
+        else
+            a = nothing
+        end
     else
-      if ac_regularisation
-        @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
-        ac_regularisation = false
-      end
-      a = nothing
+        if ac_regularisation
+            @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+            ac_regularisation = false
+        end
+        a = nothing
     end
     
     # set up regularized loss function
@@ -137,13 +137,13 @@ function p_run( R :: Matrix{TR},
     l = _maxl_l(R,g) 
     C_l = _C_l(tau,C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)
     l_reg = f -> l(f) + C_l(f)
-    
+
     # regularized gradient
     g!(G, x) = begin     
       grad_l = _maxl_g(R, g)(x)
       grad_C = _C_g(tau, C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)(x)
       grad_reg = grad_l .+ grad_C
-      for j=1:12 
+      for j=1:m 
         G[j] = grad_reg[j]
       end
     end

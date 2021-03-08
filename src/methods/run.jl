@@ -124,14 +124,14 @@ function run( R :: Matrix{TR},
     if acceptance_correction !== nothing
         ac, inv_ac = acceptance_correction
         if ac_regularisation
-          a = inv_ac(ones(m))
+            a = inv_ac(ones(m))
         else
-          a = nothing
+            a = nothing
         end
     else
         if ac_regularisation
-          @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
-          ac_regularisation = false
+            @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+            ac_regularisation = false
         end
         a = nothing
     end
