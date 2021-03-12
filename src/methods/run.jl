@@ -222,7 +222,7 @@ function run( R :: Matrix{TR},
         end
         
         # monitor progress
-        l_now = l(f) + _C_l(tau, C; a=a, log_constant=log_constant)(f)
+        l_now = l(f) + _C_l(tau, C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)(f)
         ldiff = l_prev - l_now
         @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
         inspect(f, k, ldiff, tau)
@@ -322,8 +322,8 @@ _C_l(tau::Float64, C::Matrix{Float64};
      a::Union{Nothing, Vector{Float64}}=nothing, ac_regularisation::Bool=true, log_constant::Float64=1/18394) =
     f̄ -> begin   
         if ac_regularisation && a !== nothing 
-            f̄_a = a .* max.(f̄, log_constant)
-            tau/2 * dot(log.(f̄_a), C * log.(f̄_a))
+            f̄_a_log = map(x -> x<=0.0 ? 0.0 : log(x), a .* f̄)
+            tau/2 * dot(f̄_a_log, C * f̄_a_log)
         else
             tau/2 * dot(f̄, C*f̄)
         end
@@ -336,8 +336,8 @@ _C_g(tau::Float64, C::Matrix{Float64};
         if ac_regularisation && a !== nothing 
             f̄_d = map(x -> x<=0.0 ? 0.0 : 1/x, f̄)
             F = Diagonal(f̄_d)
-            f̄ = map((x -> if x<=0.0; log_constant else x end), f̄)
-            tau * F * C * log.(a .* f̄)
+            f̄_a_log = map(x -> x<=0.0 ? 0.0 : log(x), a .* f̄)
+            C_g = tau * F * C * f̄_a_log
         else
             tau * C * f̄
         end
@@ -350,7 +350,8 @@ _C_H(tau::Float64, C::Matrix{Float64};
         if ac_regularisation && a !== nothing 
             f̄ = max.(f̄, 0.0)
             H = tau .* C ./ (f̄ * transpose(f̄))
-            H[diagind(H)] .= diag( - tau .* C * (repeat(log.(a .* max.(f̄,log_constant)), 1, length(f̄)) - diagm(ones(length(f̄)))) ./ f̄ .^2)
+            f̄_a_log = map(x -> x<=0.0 ? 0.0 : log(x), a .* f̄)
+            H[diagind(H)] .= diag( - tau .* C * (repeat(f̄_a_log, 1, length(f̄)) - diagm(ones(length(f̄)))) ./ f̄ .^2)
             if !all(isfinite.(H))
                 @warn "regularized hessian contains Infs or NaNs - replacing these by zero"
                 H[.!(isfinite.(H))] .= 0.0
