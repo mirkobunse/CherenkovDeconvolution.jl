@@ -22,7 +22,9 @@
 module CherenkovDeconvolution
 
 using LinearAlgebra, DataFrames
-using Optim: optimize # Optim required for adaptive step sizes
+using Optim
+using Optim: optimize, IPNewton, TwiceDifferentiable, TwiceDifferentiableConstraints
+
 
 export DeconvUtil, DeconvLearn
 export dsea, ibu, run
@@ -34,6 +36,7 @@ include("DeconvLearn.jl")
 # deconvolution methods
 include("methods/svd.jl")
 include("methods/run.jl")
+include("methods/p_run.jl")
 include("methods/stepsize.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
