@@ -55,7 +55,7 @@ jobs:
 
       # make sure that sklearn is installed
       - run: |
-          julia --project=docs -e '
+          julia --project=@. -e '
             using ScikitLearn
             @sk_import tree : DecisionTreeClassifier'
 
