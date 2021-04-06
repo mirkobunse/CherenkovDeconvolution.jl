@@ -51,13 +51,12 @@ jobs:
       # prepare the environment for building PyCall
       - uses: julia-actions/julia-buildpkg@latest
         env:
-          PYTHON : python
+          PYTHON: ''
 
       # make sure that sklearn is installed
       - run: |
           julia --project=@. -e '
-            using PyCall, ScikitLearn
-            pyimport_conda("sklearn", "scikit-learn", "conda-forge")
+            using ScikitLearn
             @sk_import tree : DecisionTreeClassifier'
 
       - run: |
