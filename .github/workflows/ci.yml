@@ -56,7 +56,8 @@ jobs:
       # make sure that sklearn is installed
       - run: |
           julia --project=@. -e '
-            using ScikitLearn
+            using PyCall, ScikitLearn
+            pyimport_conda("sklearn", "scikit-learn", "conda-forge")
             @sk_import tree : DecisionTreeClassifier'
 
       - run: |
