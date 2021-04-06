@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/mirkobunse/CherenkovDeconvolution.jl.svg?branch=master)](https://travis-ci.org/mirkobunse/CherenkovDeconvolution.jl)
+[![Build Status](https://github.com/mirkobunse/CherenkovDeconvolution.jl/workflows/CI/badge.svg)](https://github.com/mirkobunse/CherenkovDeconvolution.jl/actions)
 
 # CherenkovDeconvolution.jl
 
