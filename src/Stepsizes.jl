@@ -30,9 +30,6 @@ module Stepsizes
 
 using LinearAlgebra, Optim
 
-@deprecate alpha_decay_exp ExpDecayStepsize
-@deprecate alpha_decay_mul MulDecayStepsize
-
 export ConstantStepsize, DEFAULT_STEPSIZE, ExpDecayStepsize, MulDecayStepsize, Stepsize, stepsize
 
 """

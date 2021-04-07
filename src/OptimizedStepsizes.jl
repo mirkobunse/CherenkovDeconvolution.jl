@@ -32,9 +32,6 @@ using ..DeconvUtil, ..Methods, ..Stepsizes
 
 export LsqStepsize, OptimizedStepsize, RunStepsize
 
-@deprecate alpha_adaptive_run RunStepsize
-@deprecate alpha_adaptive_lsq LsqStepsize
-
 """
     OptimizedStepsize(objective, decay)
 

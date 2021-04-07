@@ -40,4 +40,10 @@ export run
 include("OptimizedStepsizes.jl")
 @reexport using .OptimizedStepsizes
 
+# redirect deprecated methods
+@deprecate alpha_decay_exp ExpDecayStepsize
+@deprecate alpha_decay_mul MulDecayStepsize
+@deprecate alpha_adaptive_run RunStepsize
+@deprecate alpha_adaptive_lsq LsqStepsize
+
 end # module
