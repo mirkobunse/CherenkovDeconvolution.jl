@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-module DeconvLearn
+module Binnings
 
 using DataFrames, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall, pyimport

@@ -1,7 +1,7 @@
 # 
 # Unit tests for the Sklearn module
 # 
-@testset "CherenkovDeconvolution.DeconvLearn, as tested in test/DeconvLearn.jl" begin
+@testset "CherenkovDeconvolution.Binnings, as tested in test/Binnings.jl" begin
 
 
 # dummy data
@@ -25,22 +25,22 @@ X_train = X_train[train_order, :]
 y_train = y_train[train_order]
 
 
-@testset "DeconvLearn.TreeDiscretizer" begin
-    td = DeconvLearn.TreeDiscretizer(X_train, y_train, 3)
-    x_data = DeconvLearn.encode(td, X_data)
+@testset "Binnings.TreeDiscretizer" begin
+    td = Binnings.TreeDiscretizer(X_train, y_train, 3)
+    x_data = Binnings.encode(td, X_data)
     @test x_data[1] == x_data[2]
     @test x_data[3] == x_data[4]
     @test x_data[5] == x_data[6]
-    @test DeconvLearn.bins(td) == [ 1, 2, 3 ]
+    @test Binnings.bins(td) == [ 1, 2, 3 ]
 end
 
-@testset "DeconvLearn.KMeansDiscretizer" begin
-    kd = DeconvLearn.KMeansDiscretizer(X_train, 3)
-    x_data = DeconvLearn.encode(kd, X_data)
+@testset "Binnings.KMeansDiscretizer" begin
+    kd = Binnings.KMeansDiscretizer(X_train, 3)
+    x_data = Binnings.encode(kd, X_data)
     @test x_data[1] == x_data[2]
     @test x_data[3] == x_data[4]
     @test x_data[5] == x_data[6]
-    @test DeconvLearn.bins(kd) == [ 1, 2, 3 ]
+    @test Binnings.bins(kd) == [ 1, 2, 3 ]
 end
 
 

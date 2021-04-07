@@ -23,8 +23,8 @@ module CherenkovDeconvolution
 
 # utility modules
 include("DeconvUtil.jl")
-include("DeconvLearn.jl")
-export DeconvUtil, DeconvLearn
+include("Binnings.jl")
+export DeconvUtil
 
 # deconvolution methods
 include("Methods.jl")

@@ -1,13 +1,13 @@
 using Test, Random, Statistics
 using ScikitLearn, Distances, Discretizers, NBInclude
 using CherenkovDeconvolution
-using CherenkovDeconvolution.Methods
+using CherenkovDeconvolution: Binnings, Methods
 
 Random.seed!(42) # make tests reproducible
 
 # utilities
 include("DeconvUtil.jl")
-include("DeconvLearn.jl")
+include("Binnings.jl")
 
 # 
 # additional helpers

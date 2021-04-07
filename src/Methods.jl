@@ -27,7 +27,7 @@ This module contains a collection of deconvolution methods.
 module Methods
 
 using DataFrames, LinearAlgebra, Optim
-using ..DeconvUtil, ..DeconvLearn
+using ..DeconvUtil, ..Binnings
 
 export dsea, ibu, p_run, run, svd
 
