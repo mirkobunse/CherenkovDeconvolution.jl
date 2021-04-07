@@ -28,6 +28,7 @@ module Methods
 
 using DataFrames, LinearAlgebra, Optim
 using ..DeconvUtil, ..Binnings
+import ..DEFAULT_STEPSIZE, ..Stepsize, ..stepsize
 
 export dsea, ibu, p_run, run, svd
 
@@ -35,7 +36,6 @@ export dsea, ibu, p_run, run, svd
 include("methods/svd.jl")
 include("methods/run.jl")
 include("methods/p_run.jl")
-include("methods/stepsize.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
 

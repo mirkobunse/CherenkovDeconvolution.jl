@@ -19,44 +19,23 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
-export Stepsize, stepsize, ConstantStepsize, RunStepsize, LsqStepsize, ExpDecayStepsize, MulDecayStepsize, DEFAULT_STEPSIZE
+"""
+    module Stepsizes
+
+This module contains a collection of stepsize strategies for deconvolution methods.
+"""
+module Stepsizes
+
+using LinearAlgebra, Optim
+using ..DeconvUtil, ..Methods
+import ..Stepsize, ..stepsize
+
+export RunStepsize, LsqStepsize, ExpDecayStepsize, MulDecayStepsize
 
 @deprecate alpha_adaptive_run RunStepsize
 @deprecate alpha_adaptive_lsq LsqStepsize
 @deprecate alpha_decay_exp ExpDecayStepsize
 @deprecate alpha_decay_mul MulDecayStepsize
-
-"""
-    abstract type stepsize end
-
-Abstract supertype for step sizes in deconvolution.
-
-**See also:** `stepsize`.
-"""
-abstract type Stepsize end
-
-"""
-    stepsize(s, k, p, f, a)
-
-Use the `Stepsize` object `s` to compute a step size for iteration number `k` with
-the search direction `p`, the previous estimate `f`, and the previous step size `a`.
-
-**See also:** `ConstantStepsize`, `RunStepsize`, `LsqStepsize`, `ExpDecayStepsize`,
-`MulDecayStepsize`.
-"""
-stepsize(s::Stepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
-    error("Not implemented")
-
-"""
-    ConstantStepsize(alpha)
-
-Choose the constant step size `alpha` in every iteration.
-"""
-struct ConstantStepsize <: Stepsize
-    alpha::Float64
-end
-stepsize(s::ConstantStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
-    s.alpha
 
 """
     OptimizedStepsize(objective, decay)
@@ -106,9 +85,9 @@ function RunStepsize( x_data  :: AbstractVector{T},
     g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
 
     # set up the negative log likelihood function to be minimized
-    C = _tikhonov_binning(size(R, 2))      # regularization matrix (from run.jl)
-    maxl_l = _maxl_l(R, g)                 # function of f (from run.jl)
-    maxl_C = _C_l(tau, C)                  # regularization term (from run.jl)
+    C = Methods._tikhonov_binning(size(R, 2)) # regularization matrix (from run.jl)
+    maxl_l = Methods._maxl_l(R, g)         # function of f (from run.jl)
+    maxl_C = Methods._C_l(tau, C)          # regularization term (from run.jl)
     objective = f -> maxl_l(f) + maxl_C(f) # regularized objective function
     return OptimizedStepsize(objective, decay)
 end
@@ -138,8 +117,8 @@ function LsqStepsize( x_data  :: AbstractVector{T},
 
     # set up the negative log likelihood function to be minimized
     C = diagm(0 => ones(size(R, 2)))     # minimum-norm regularization matrix
-    lsq_l = _lsq_l(R, g)                 # function of f (from run.jl)
-    lsq_C = _C_l(tau, C)                 # regularization term (from run.jl)
+    lsq_l = Methods._lsq_l(R, g)         # function of f (from run.jl)
+    lsq_C = Methods._C_l(tau, C)         # regularization term (from run.jl)
     objective = f -> lsq_l(f) + lsq_C(f) # regularized objective function
     return OptimizedStepsize(objective, decay)
 end
@@ -190,4 +169,4 @@ function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
     return a_min, a_max
 end
 
-const DEFAULT_STEPSIZE = ConstantStepsize(1.0)
+end # module

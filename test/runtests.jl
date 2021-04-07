@@ -1,7 +1,7 @@
 using Test, Random, Statistics
 using ScikitLearn, Distances, Discretizers, NBInclude
 using CherenkovDeconvolution
-using CherenkovDeconvolution: Binnings, Methods
+using CherenkovDeconvolution: Binnings, Methods, Stepsizes
 
 Random.seed!(42) # make tests reproducible
 

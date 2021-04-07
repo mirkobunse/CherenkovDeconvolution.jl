@@ -33,7 +33,7 @@ end
         alpha_const = 4 * (rand() - .5) # in [-2, 2)
         
         # test constant step size
-        f_plus, alpha_out = Methods._dsea_step(k_dummy, f, f_prev, Inf, Methods.ConstantStepsize(alpha_const))
+        f_plus, alpha_out = Methods._dsea_step(k_dummy, f, f_prev, Inf, ConstantStepsize(alpha_const))
         @test alpha_const == alpha_out
         @test all( f_plus .== f_prev + (f - f_prev) * alpha_const )
     end
@@ -60,7 +60,7 @@ end
         
         # find range of admissible alphas
         range_old = _alpha_range_old(pk, f)
-        range_new = Methods._alpha_range(pk, f)
+        range_new = Stepsizes._alpha_range(pk, f)
         
         # old method is only approximate, so the new result has to be rounded for comparison
         range_new_rounded = floor.(range_new, digits=abs(convert(Int, log10(PRECISION))))
