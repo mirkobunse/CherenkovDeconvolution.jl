@@ -23,9 +23,8 @@ module Binnings
 
 using DataFrames, ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall, pyimport
-import CherenkovDeconvolution.DeconvUtil
 
-export bins, ClusterDiscretizer, encode, KMeansDiscretizer, TreeDiscretizer
+export Binning, BinningDiscretizer, bins, encode, KMeansBinning, TreeBinning
 
 # the following replacement for @sk_import enables precompilation
 const __KMeans = Ref{PyObject}()
@@ -41,58 +40,92 @@ KMeans(args...; kwargs...) = __KMeans[](args...; kwargs...)
 DecisionTreeClassifier(args...; kwargs...) = __DecisionTreeClassifier[](args...; kwargs...)
 
 """
-    abstract type ClusterDiscretizer <: AbstractDiscretizer
+    abstract type Binning
+
+Supertype of all binning strategies for observable features.
+"""
+abstract type Binning end
+
+"""
+    TreeBinning(J; kwargs...)
+
+A supervised tree binning strategy with up to `J` clusters.
+
+### Keyword arguments
+
+- `criterion = "gini"` is the splitting criterion of the tree.
+- `seed = rand(UInt32)` is the random seed for tie breaking.
+"""
+struct TreeBinning <: Binning
+    J :: Int
+    criterion :: String
+    seed :: Int
+    TreeBinning(
+            J::Integer;
+            criterion::AbstractString="gini",
+            seed::Integer=rand(UInt32)) =
+        new(J, criterion, seed)
+end
+
+"""
+    KMeansBinning(J; seed=rand(UInt32))
+
+An unsupervised binning strategy with up to `J` clusters.
+"""
+struct KMeansBinning <: Binning
+    J :: Int
+    seed :: Int
+    KMeansBinning(
+            J::Integer;
+            seed::Integer=rand(UInt32)) =
+        new(J, seed)
+end
+
+"""
+    abstract type BinningDiscretizer <: AbstractDiscretizer
 
 Supertype of any clustering-based discretizer mapping from an n-dimensional space to a
 single cluster index dimension.
 """
-abstract type ClusterDiscretizer{T<:Number} <: AbstractDiscretizer{Vector{T}, Int} end
+abstract type BinningDiscretizer{T<:Any} <: AbstractDiscretizer{Vector{T}, Int} end
 
-@doc """
-    bins(d::T) where T <: ClusterDiscretizer
+"""
+    struct TreeDiscretizer <: BinningDiscretizer
 
-Return the bin indices of `d`.
-""" bins # overwritten by sub-types
-
-
-struct TreeDiscretizer{T<:Number} <: ClusterDiscretizer{T}
+A discretizer that is trained with a `TreeBinning` strategy.
+"""
+struct TreeDiscretizer{T<:Number} <: BinningDiscretizer{T}
     model::PyObject
     indexmap::Dict{Int64,Int64}
 end
 
-"""
-    TreeDiscretizer(X_train, y_train, J, criterion="gini"; seed)
-
-A decision tree with at most `J` leaves is trained on `X_train` to predict `y_train`. This
-tree is used to discretize multidimensional data with `encode()`.
-"""
-function TreeDiscretizer(X_train::AbstractMatrix{TN},
-                         y_train::AbstractVector{TI},
-                         J::TI, criterion::String="gini";
-                         seed::Integer=rand(UInt32)) where {TN<:Number, TI<:Int}
-    # conversion required for ScikitLearn
-    X_train_c = convert(Matrix, X_train)
-    y_train_c = convert(Vector, y_train)
-    
-    # train classifier
-    classifier = DecisionTreeClassifier(max_leaf_nodes = convert(UInt32, J),
-                                        criterion      = criterion,
-                                        random_state   = convert(UInt32, seed))
-    ScikitLearn.fit!(classifier, X_train_c, y_train_c)
+# constructor of a TreeDiscretizer
+function BinningDiscretizer(
+        b::TreeBinning,
+        X_trn::AbstractArray{T,Vararg{Int}},
+        y_trn::AbstractVector{I}
+        ) where {T<:Any, I<:Integer}
+    X_trn_c = convert(Matrix, X_trn) # sklearn requires conversion
+    classifier = DecisionTreeClassifier(
+        max_leaf_nodes = convert(UInt32, J),
+        criterion = criterion,
+        random_state = convert(UInt32, seed)
+    )
+    ScikitLearn.fit!(classifier, X_trn_c, convert(Vector, y_trn))
     
     # create some "nice" indices 1,...n
-    x_train = _apply(classifier, X_train_c) # leaf indices, which are rather arbitrary
-    indexmap = Dict(zip(unique(x_train), 1:length(unique(x_train))))
-    return TreeDiscretizer{TN}(classifier, indexmap)
+    x_trn = _apply(classifier, X_trn_c) # leaf indices, which are rather arbitrary
+    indexmap = Dict(zip(unique(x_trn), 1:length(unique(x_trn))))
+    return TreeDiscretizer{T}(classifier, indexmap)
 end
 
 """
-    encode(d::TreeDiscretizer, X_data)
+    encode(d::TreeDiscretizer, X_obs)
 
-Discretize `X_data` using the leaf indices in the decision tree of `d` as discrete values.
+Discretize `X_obs` using the leaf indices in the decision tree of `d` as discrete values.
 """
-function Discretizers.encode(d::TreeDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number
-    x_data = _apply(d.model, convert(Matrix, X_data))
+function Discretizers.encode(d::TreeDiscretizer{T}, X_obs::AbstractMatrix{T}) where T<:Number
+    x_data = _apply(d.model, convert(Matrix, X_obs))
     return map(i -> d.indexmap[i], convert(Vector{Int64}, x_data))
 end
 
@@ -100,35 +133,40 @@ _apply(model::PyObject, X) = pycall(model.apply, PyArray, X) # return the leaf i
 
 bins(d::TreeDiscretizer) = sort(collect(values(d.indexmap)))
 
+"""
+    struct KMeansDiscretizer <: BinningDiscretizer
 
-struct KMeansDiscretizer{T<:Number} <: ClusterDiscretizer{T}
+A discretizer that is trained with a `KMeansBinning` strategy.
+"""
+struct KMeansDiscretizer{T<:Number} <: BinningDiscretizer{T}
     model::PyObject
-    k::Int64
+    J::Int
 end
 
-"""
-    KMeansDiscretizer(X_train, k)
-
-Unsupervised clustering using all columns in `train`, finding `k` clusters.
-It can be used to `discretize()` multidimensional data.
-"""
-function KMeansDiscretizer(X_train::AbstractMatrix{T}, k::Int;
-                           seed::UInt32=rand(UInt32)) where T<:Number
-    clustering = KMeans(n_clusters=k, n_init=1, random_state=seed)
+function BinningDiscretizer(
+        b::KMeansBinning,
+        X_trn::AbstractArray{T,Vararg{Int}},
+        y_trn::AbstractVector{I}
+        ) where {T<:Any, I<:Integer}
+    clustering = KMeans(n_clusters=b.J, n_init=1, random_state=seed)
     ScikitLearn.fit!(clustering, convert(Matrix, X_train))
-    return KMeansDiscretizer{T}(clustering, k)
+    return KMeansDiscretizer{T}(clustering, b.J)
 end
 
 """
-    encode(d::KMeansDiscretizer, X_data)
+    encode(d::KMeansDiscretizer, X_obs)
 
-Discretize `X_data` using the cluster indices of `d` as discrete values.
+Discretize `X_obs` using the cluster indices of `d` as discrete values.
 """
-Discretizers.encode(d::KMeansDiscretizer{T}, X_data::AbstractMatrix{T}) where T<:Number =
-    convert(Vector{Int64}, ScikitLearn.predict(d.model, convert(Matrix, X_data))) .+ 1
+Discretizers.encode(d::KMeansDiscretizer{T}, X_obs::AbstractMatrix{T}) where T<:Number =
+    convert(Vector{Int64}, ScikitLearn.predict(d.model, convert(Matrix, X_obs))) .+ 1
 
-bins(d::KMeansDiscretizer) = collect(1:d.k)
+bins(d::KMeansDiscretizer) = collect(1:d.J)
 
+@doc """
+    bins(d::T) where T <: BinningDiscretizer
 
-end
+Return the bin indices of `d`.
+""" bins # update the documentation
 
+end # module
