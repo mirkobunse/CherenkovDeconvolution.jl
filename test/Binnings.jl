@@ -23,8 +23,8 @@ train_order = randperm(size(X_train, 1))
 X_train = X_train[train_order, :]
 y_train = y_train[train_order]
 
-@testset "Binnings.TreeDiscretizer" begin
-    td = TreeDiscretizer(X_train, y_train, 3)
+@testset "Binnings.TreeBinning" begin
+    td = BinningDiscretizer(TreeBinning(3), X_train, y_train)
     x_data = encode(td, X_data)
     @test x_data[1] == x_data[2]
     @test x_data[3] == x_data[4]
@@ -32,8 +32,8 @@ y_train = y_train[train_order]
     @test bins(td) == [ 1, 2, 3 ]
 end
 
-@testset "Binnings.KMeansDiscretizer" begin
-    kd = KMeansDiscretizer(X_train, 3)
+@testset "Binnings.KMeansBinning" begin
+    kd = BinningDiscretizer(KMeansBinning(3), X_train, y_train)
     x_data = encode(kd, X_data)
     @test x_data[1] == x_data[2]
     @test x_data[3] == x_data[4]
@@ -42,4 +42,4 @@ end
 end
 
 
-end # end of sklearn testset
+end # testset
