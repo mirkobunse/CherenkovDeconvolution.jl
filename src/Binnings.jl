@@ -102,9 +102,9 @@ end
 # constructor of a TreeDiscretizer
 function BinningDiscretizer(
         b::TreeBinning,
-        X_trn::AbstractArray{T,Vararg{Int}},
+        X_trn::AbstractMatrix{T},
         y_trn::AbstractVector{I}
-        ) where {T<:Any, I<:Integer}
+        ) where {T<:Number, I<:Integer}
     X_trn_c = convert(Matrix, X_trn) # sklearn requires conversion
     classifier = DecisionTreeClassifier(
         max_leaf_nodes = convert(UInt32, b.J),
@@ -145,11 +145,11 @@ end
 
 function BinningDiscretizer(
         b::KMeansBinning,
-        X_trn::AbstractArray{T,Vararg{Int}},
+        X_trn::AbstractMatrix{T},
         y_trn::AbstractVector{I} = Int[] # y_trn is optional, here
-        ) where {T<:Any, I<:Integer}
-    clustering = KMeans(n_clusters=b.J, n_init=1, random_state=seed)
-    ScikitLearn.fit!(clustering, convert(Matrix, X_train))
+        ) where {T<:Number, I<:Integer}
+    clustering = KMeans(n_clusters=b.J, n_init=1, random_state=b.seed)
+    ScikitLearn.fit!(clustering, convert(Matrix, X_trn))
     return KMeansDiscretizer{T}(clustering, b.J)
 end
 
