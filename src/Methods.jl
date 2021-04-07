@@ -30,6 +30,50 @@ using DataFrames, LinearAlgebra, Optim
 using ..DeconvUtil, ..Binnings
 import ..DEFAULT_STEPSIZE, ..Stepsize, ..stepsize
 
+export DeconvolutionMethod, DiscreteMethod
+
+"""
+    abstract type DeconvolutionMethod
+
+The supertype of all deconvolution methods.
+"""
+abstract type DeconvolutionMethod end
+
+"""
+    abstract type DiscreteMethod <: DeconvolutionMethod
+
+The supertype of all classical deconvolution methods which estimate the density
+function `f` from a transfer matrix `R` and an observed density `g`.
+"""
+abstract type DiscreteMethod <: DeconvolutionMethod end
+
+"""
+    deconvolve(m, X_obs, X_trn, y_trn)
+
+Deconvolve the observed features in `X_obs` with the deconvolution method `m`
+trained on the features `X_trn` and the corresponding labels `y_trn`.
+"""
+deconvolve(m::DeconvolutionMethod, X_obs::AbstractArray, X_trn::AbstractArray, y_trn::AbstractVector{I}) where I<:Integer =
+    throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
+
+# discrete methods actually deconvolve from R and g, so the general API must wrap them
+function deconvolve(m::DiscreteMethod, X_obs::AbstractArray, X_trn::AbstractArray, y_trn::AbstractVector{I}) where I<:Integer
+    d = BinningDiscretizer(binning(m), X_trn, y_trn) # fit the binning strategy with labeled data
+    x_obs = encode(d, X_obs) # apply it to the feature vectors
+    x_trn = encode(d, X_trn)
+    R = DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=fits_ratios(m))
+    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=normalizes_g(m))
+    return deconvolve(m, R, g)
+end
+
+# required API for discrete methods
+deconvolve(m::DiscreteMethod, R::Matrix{T_R}, g::Vector{T_g}) where {T_R<:Number, T_g<:Number} =
+    throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
+binning(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
+fits_ratios(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
+normalizes_g(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
+prior(m::DiscreteMethod) = nothing # a prior is optional
+
 export dsea, ibu, p_run, run, svd
 
 # deconvolution methods
