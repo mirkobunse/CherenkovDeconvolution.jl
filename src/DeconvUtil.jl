@@ -21,11 +21,12 @@
 # 
 module DeconvUtil
 
-using DataFrames, Discretizers, LinearAlgebra, Polynomials, StatsBase
+using DataFrames, Discretizers, LinearAlgebra, Polynomials, ScikitLearn, StatsBase
 
 export fit_pdf, fit_R, edges, normalizetransfer
 export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
 export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
+export train_and_predict_proba
 
 
 """    
@@ -364,5 +365,23 @@ df2X(df::AbstractDataFrame, features::AbstractVector{Symbol}=names(df)) =
     convert(Matrix, df[:, features])
 
 
+"""
+    train_and_predict_proba(classifier, :sample_weight)
+
+Obtain a `train_and_predict_proba` object for DSEA.
+
+The optional argument gives the name of the `classifier` parameter with which the sample
+weight can be specified when calling `ScikitLearn.fit!`. Usually, its value does not need to
+be changed. However, if for example a scikit-learn `Pipeline` object is the `classifier`,
+the name of the step has to be provided like `:stepname__sample_weight`.
+"""
+function train_and_predict_proba(classifier, sample_weight::Union{Symbol,Nothing}=:sample_weight)
+    return (X_data::Array, X_train::Array, y_train::Vector, w_train::Vector) -> begin
+        kwargs_fit = sample_weight == nothing ? [] : [ (sample_weight, DeconvUtil.normalizepdf(w_train)) ]
+        ScikitLearn.fit!(classifier, X_train, y_train; kwargs_fit...)
+        return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
+    end
 end
 
+
+end # module
