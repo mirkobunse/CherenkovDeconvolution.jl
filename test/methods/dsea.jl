@@ -60,7 +60,7 @@ end
         
         # find range of admissible alphas
         range_old = _alpha_range_old(pk, f)
-        range_new = Stepsizes._alpha_range(pk, f)
+        range_new = OptimizedStepsizes._alpha_range(pk, f)
         
         # old method is only approximate, so the new result has to be rounded for comparison
         range_new_rounded = floor.(range_new, digits=abs(convert(Int, log10(PRECISION))))

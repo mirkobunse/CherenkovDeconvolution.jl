@@ -22,106 +22,50 @@
 """
     module Stepsizes
 
-This module contains a collection of stepsize strategies for deconvolution methods.
+This module contains a collection of basic stepsize strategies for deconvolution methods.
+
+**See also:** `module OptimizedStepsizes`
 """
 module Stepsizes
 
 using LinearAlgebra, Optim
-using ..DeconvUtil, ..Methods
-import ..Stepsize, ..stepsize
 
-export RunStepsize, LsqStepsize, ExpDecayStepsize, MulDecayStepsize
-
-@deprecate alpha_adaptive_run RunStepsize
-@deprecate alpha_adaptive_lsq LsqStepsize
 @deprecate alpha_decay_exp ExpDecayStepsize
 @deprecate alpha_decay_mul MulDecayStepsize
 
-"""
-    OptimizedStepsize(objective, decay)
+export ConstantStepsize, DEFAULT_STEPSIZE, ExpDecayStepsize, MulDecayStepsize, Stepsize, stepsize
 
-A step size that is optimized over an `objective` function. If `decay=true`, then
-the step sizes never increase.
-
-**See also:** `RunStepsize`, `LsqStepsize`.
 """
-struct OptimizedStepsize <: Stepsize
-    objective::Function
-    decay::Bool
+    abstract type stepsize end
+
+Abstract supertype for step sizes in deconvolution.
+
+**See also:** `stepsize`.
+"""
+abstract type Stepsize end
+
+"""
+    stepsize(s, k, p, f, a)
+
+Use the `Stepsize` object `s` to compute a step size for iteration number `k` with
+the search direction `p`, the previous estimate `f`, and the previous step size `a`.
+
+**See also:** `ConstantStepsize`, `RunStepsize`, `LsqStepsize`, `ExpDecayStepsize`,
+`MulDecayStepsize`.
+"""
+stepsize(s::Stepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+    throw(ArgumentError("Not implemented for type $(typeof(s))"))
+
+"""
+    ConstantStepsize(alpha)
+
+Choose the constant step size `alpha` in every iteration.
+"""
+struct ConstantStepsize <: Stepsize
+    alpha::Float64
 end
-function stepsize(s::OptimizedStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64)
-    a_min, a_max = _alpha_range(p, f)
-    if s.decay
-        a_max = min(a_max, a) # never increase the step size
-    end
-    return if a_max > a_min
-        optimize(x -> s.objective(f + x * p), a_min, a_max).minimizer # from Optim.jl
-    else
-        min(a_min, a) # only one value is feasible
-    end
-end
-
-"""
-    RunStepsize(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false, decay=false])
-
-Adapt the step size by maximizing the likelihood of the next estimate in the search direction
-of the current iteration.
-
-The arguments of this function reflect a discretized deconvolution problem, as used in RUN.
-Setting `decay=true` will enforce that a_k+1 <= a_k, i.e. the step sizes never increase.
-
-**See also:** `OptimizedStepsize`.
-"""
-function RunStepsize( x_data  :: AbstractVector{T},
-                      x_train :: AbstractVector{T},
-                      y_train :: AbstractVector{T},
-                      tau     :: Number = 0.0;
-                      bins_y  :: AbstractVector{T} = 1:maximum(y_train),
-                      bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
-                      warn    :: Bool = false,
-                      decay   :: Bool = false ) where T<:Int
-    # set up the discrete deconvolution problem
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y=bins_y, bins_x=bins_x, normalize=false), warn=warn)
-    g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
-
-    # set up the negative log likelihood function to be minimized
-    C = Methods._tikhonov_binning(size(R, 2)) # regularization matrix (from run.jl)
-    maxl_l = Methods._maxl_l(R, g)         # function of f (from run.jl)
-    maxl_C = Methods._C_l(tau, C)          # regularization term (from run.jl)
-    objective = f -> maxl_l(f) + maxl_C(f) # regularized objective function
-    return OptimizedStepsize(objective, decay)
-end
-
-"""
-    LsqStepsize(x_data, x_train, y_train[, tau=0; bins_y, bins_x, warn=false, decay=false])
-
-Adapt the step size by solving a least squares objective in the search direction of the
-current iteration.
-
-The arguments of this function reflect a discretized deconvolution problem, as used in RUN.
-Setting `decay=true` will enforce that a_k+1 <= a_k, i.e. the step sizes never increase.
-
-**See also:** `OptimizedStepsize`.
-"""
-function LsqStepsize( x_data  :: AbstractVector{T},
-                      x_train :: AbstractVector{T},
-                      y_train :: AbstractVector{T},
-                      tau     :: Number = 0.0;
-                      bins_y  :: AbstractVector{T} = 1:maximum(y_train),
-                      bins_x  :: AbstractVector{T} = 1:maximum(vcat(x_data, x_train)),
-                      warn    :: Bool = false,
-                      decay   :: Bool = false ) where T<:Int
-    # set up the discrete deconvolution problem
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_train, x_train, bins_y=bins_y, bins_x=bins_x, normalize=false), warn=warn)
-    g = DeconvUtil.fit_pdf(x_data, bins_x, normalize = false) # absolute counts instead of pdf
-
-    # set up the negative log likelihood function to be minimized
-    C = diagm(0 => ones(size(R, 2)))     # minimum-norm regularization matrix
-    lsq_l = Methods._lsq_l(R, g)         # function of f (from run.jl)
-    lsq_C = Methods._C_l(tau, C)         # regularization term (from run.jl)
-    objective = f -> lsq_l(f) + lsq_C(f) # regularized objective function
-    return OptimizedStepsize(objective, decay)
-end
+stepsize(s::ConstantStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+    s.alpha
 
 """
     ExpDecayStepsize(eta, a=1.0)
@@ -153,20 +97,11 @@ end
 stepsize(s::MulDecayStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
     s.a * k^(s.eta-1)
 
-# range of admissible alpha values
-function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
-    if all(pk .== 0)
-        return 0., 0.
-    end # no reasonable direction
+"""
+    const DEFAULT_STEPSIZE = ConstantStepsize(1.0)
 
-    # find alpha values for which the next estimate would be zero in one dimension
-    a_zero = - (f[pk.!=0] ./ pk[pk.!=0]) # ignore zeros in pk, for which alpha is arbitrary
-
-    # for positive pk[i] (negative a_zero[i]), alpha has to be larger than a_zero[i]
-    # for negative pk[i] (positive a_zero[i]), alpha has to be smaller than a_zero[i]
-    a_min = maximum(vcat(a_zero[a_zero .< 0], 0)) # vcat selects a_min = 0 if no pk[i]>0 is present
-    a_max = minimum(a_zero[a_zero .>= 0])
-    return a_min, a_max
-end
+The default stepsize in all deconvolution methods.
+"""
+const DEFAULT_STEPSIZE = ConstantStepsize(1.0)
 
 end # module
