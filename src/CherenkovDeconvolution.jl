@@ -23,23 +23,21 @@ module CherenkovDeconvolution
 
 using Reexport
 
-# utility modules
-include("DeconvUtil.jl")
+include("DeconvUtil.jl") # utility functions
+export DeconvUtil # export as a module; do not re-export members
+
 include("Binnings.jl")
+@reexport using .Binnings
+
 include("Stepsizes.jl")
-export DeconvUtil
-using .Stepsizes
-export ConstantStepsize, DEFAULT_STEPSIZE, ExpDecayStepsize, MulDecayStepsize, Stepsize, stepsize
+@reexport using .Stepsizes
 
-# deconvolution methods
 include("Methods.jl")
-using .Methods
-using .Methods: run # solve the conflict with Base.run
-export dsea, ibu, p_run, run, svd # re-export
+@reexport using .Methods
+using .Methods: run # solve the naming conflict with Base.run
+export run
 
-# optimized stepsizes
 include("OptimizedStepsizes.jl")
-using .OptimizedStepsizes
-export LsqStepsize, OptimizedStepsize, RunStepsize
+@reexport using .OptimizedStepsizes
 
 end # module
