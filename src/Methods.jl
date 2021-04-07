@@ -30,7 +30,7 @@ using DataFrames, LinearAlgebra, Optim
 using ..DeconvUtil, ..Binnings
 import ..DEFAULT_STEPSIZE, ..Stepsize, ..stepsize
 
-export DeconvolutionMethod, DiscreteMethod
+export DeconvolutionMethod, deconvolve, DiscreteMethod
 
 """
     abstract type DeconvolutionMethod

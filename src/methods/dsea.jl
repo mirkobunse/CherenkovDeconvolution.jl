@@ -19,22 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
+export DSEA
+
 """
-    dsea(data, train, y, train_predict[, bins_y, features]; kwargs...)
+    DSEA(classifier; kwargs...)
 
-    dsea(X_data, X_train, y_train, train_predict[, bins_y]; kwargs...)
-
-
-Deconvolve the observed data with *DSEA/DSEA+* trained on the given training set.
-
-The data is provided as feature matrices `X_data`, `X_train` and the label vector `y_train`
-(or accordingly `data[features]`, `train[features]`, and `train[y]`). Here, `y_train` must
-contain label indices rather than actual values. All expected indices are optionally provided
-as `bins_y`.
-
-The function object `train_predict(X_data, X_train, y_train, w_train) -> Matrix` trains and
-applies a classifier to obtain a confidence matrix.
-
+The *DSEA/DSEA+* deconvolution method, embedding the given `classifier`.
 
 **Keyword arguments**
 
@@ -43,7 +33,7 @@ applies a classifier to obtain a confidence matrix.
 - `fixweighting = true`
   sets, whether or not the weight update fix is applied. This fix is proposed in my Master's
   thesis and in the corresponding paper.
-- `alpha = DEFAULT_STEPSIZE`
+- `stepsize = DEFAULT_STEPSIZE`
   is the step size taken in every iteration.
 - `smoothing = Base.identity`
   is a function that optionally applies smoothing in between iterations.
@@ -58,10 +48,29 @@ applies a classifier to obtain a confidence matrix.
 - `return_contributions = false`
   sets, whether or not the contributions of individual examples in `X_data` are returned as
   a tuple together with the deconvolution result.
-- `features = setdiff(names(train), [y])`
-  specifies which columns in `data` and `train` to be used as features - only applicable to
-  the first form of this function.
 """
+struct DSEA <: DeconvolutionMethod
+    classifier :: Any # hopefully implements the sklearn API
+    epsilon :: Float64
+    f_0 :: Vector{Float64}
+    fixweighting :: Bool
+    inspect :: Function
+    K :: Int
+    return_contributions :: Bool
+    smoothing :: Function # TODO smoothing types
+    stepsize :: Stepsize
+    DSEA(c;
+        epsilon      :: Float64  = 0.0,
+        f_0          :: Vector{Float64} = Float64[],
+        fixweighting :: Bool     = true,
+        inspect      :: Function = (args...) -> nothing,
+        K            :: Int64    = 1,
+        return_contributions :: Bool = false,
+        smoothing    :: Function = Base.identity,
+        stepsize     :: Stepsize = DEFAULT_STEPSIZE
+    ) = new(c, epsilon, f_0, fixweighting, inspect, K, return_contributions, smoothing, stepsize)
+end
+
 dsea( data          :: AbstractDataFrame,
       train         :: AbstractDataFrame,
       y             :: Symbol,
@@ -86,24 +95,21 @@ dsea( X_data        :: AbstractArray,
       train_predict :: Function,
       bins_y        :: AbstractVector{T} = 1:maximum(y_train);
       kwargs... ) where T<:Int =
-  _dsea(convert(Array, X_data), convert(Array, X_train), convert(Vector, y_train),
-        train_predict, convert(Vector, bins_y); kwargs...)
+  error("No deprecation redirection implemented")
+  # _dsea(convert(Array, X_data), convert(Array, X_train), convert(Vector, y_train),
+  #       train_predict, convert(Vector, bins_y); kwargs...)
 
-function _dsea(X_data        :: Array,
-               X_train       :: Array,
-               y_train       :: Vector{T},
-               train_predict :: Function,
-               bins_y        :: Vector{T} = 1:maximum(y_train);
-               f_0           :: Vector{Float64} = Float64[],
-               alpha         :: Stepsize = DEFAULT_STEPSIZE,
-               fixweighting  :: Bool     = true,
-               smoothing     :: Function = Base.identity,
-               K             :: Int64    = 1,
-               epsilon       :: Float64  = 0.0,
-               inspect       :: Function = (args...) -> nothing,
-               loggingstream :: IO       = devnull,
-               return_contributions :: Bool = false) where T<:Int
-    
+
+function deconvolve(
+        dsea::DSEA,
+        X_obs::AbstractArray,
+        X_trn::AbstractArray,
+        y_trn::AbstractVector{I}
+        ) where {I<:Integer}
+    X_data = convert(Array, X_obs) # TODO better use a wrapper like above
+    X_train = convert(Array, X_trn)
+    y_train = convert(Vector, y_trn)
+
     # recode labels and check arguments
     if all(y_train .== y_train[1])
         f_est = zeros(length(bins_y))
@@ -115,33 +121,30 @@ function _dsea(X_data        :: Array,
     if size(X_data, 2) != size(X_train, 2)
         throw(ArgumentError("X_data and X_train do not have the same number of features"))
     end
-    f_0 = _check_prior(f_0, recode_dict)
-    
-    if loggingstream != devnull
-        @warn "The argument 'loggingstream' is deprecated in v0.1.0. Use the 'with_logger' functionality of julia-0.7 and above." _group=:depwarn
-    end
-    
+    f_0 = _check_prior(dsea.f_0, recode_dict)
+
     # initial estimate
     f       = f_0
     f_train = DeconvUtil.fit_pdf(y_train, laplace=true)                            # training pdf with Laplace correction
-    w_bin   = fixweighting ? DeconvUtil.normalizepdf(f ./ f_train, warn=false) : f # bin weights
+    w_bin   = dsea.fixweighting ? DeconvUtil.normalizepdf(f ./ f_train, warn=false) : f # bin weights
     w_train = _dsea_weights(y_train, w_bin)                                  # instance weights
     inspect(_recode_result(f, recode_dict), 0, NaN, NaN)
     
     # iterative deconvolution
     proba = Matrix{Float64}(undef, 0, 0) # empty matrix
     alphak = Inf
-    for k in 1:K
+    for k in 1:dsea.K
         f_prev = f
         
         # === update the estimate ===
-        proba     = train_predict(X_data, X_train, y_train, w_train)
+        tp = DeconvUtil.train_and_predict_proba(dsea.classifier)
+        proba     = tp(X_data, X_train, y_train, w_train)
         f_next    = _dsea_reconstruct(proba) # original DSEA reconstruction
         f, alphak = _dsea_step( k,
                                 _recode_result(f_next, recode_dict),
                                 _recode_result(f_prev, recode_dict),
                                 alphak,
-                                alpha ) # step size function assumes original coding
+                                dsea.stepsize ) # step size function assumes original coding
         f = _check_prior(f, recode_dict) # re-code result of _dsea_step
         # = = = = = = = = = = = = = =
         
@@ -151,15 +154,15 @@ function _dsea(X_data        :: Array,
         inspect(_recode_result(f, recode_dict), k, chi2s, alphak)
         
         # stop when convergence is assumed
-        if chi2s < epsilon # also holds when alpha is zero
-            @info "DSEA convergence assumed from chi2s = $chi2s < epsilon = $epsilon"
+        if chi2s < dsea.epsilon # also holds when alpha is zero
+            @info "DSEA convergence assumed from chi2s = $chi2s < epsilon = $(dsea.epsilon)"
             break
         end
         
         # == smoothing and reweighting in between iterations ==
         if k < K
-            f = smoothing(f)
-            w_bin   = fixweighting ? DeconvUtil.normalizepdf(f ./ f_train, warn=false) : f
+            f = dsea.smoothing(f)
+            w_bin   = dsea.fixweighting ? DeconvUtil.normalizepdf(f ./ f_train, warn=false) : f
             w_train = _dsea_weights(y_train, w_bin)
         end
         # = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -167,8 +170,8 @@ function _dsea(X_data        :: Array,
     end
     
     f_rec = _recode_result(f, recode_dict) # revert recoding of labels
-    if !return_contributions # the default case
-        return f_rec
+    if !dsea.return_contributions
+        return f_rec # the default case
     else
         return f_rec, _recode_result(proba, recode_dict) # return tuple
     end
