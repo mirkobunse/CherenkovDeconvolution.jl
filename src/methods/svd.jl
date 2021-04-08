@@ -1,28 +1,38 @@
+# 
+# CherenkovDeconvolution.jl
+# Copyright 2018, 2019, 2020 Mirko Bunse
+# 
+# 
+# Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
+# 
+# 
+# CherenkovDeconvolution.jl is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
+# 
+export SVD
+
 """
-    svd(data, train, x, y[, bins_y]; kwargs...)
+    SVD(binning; kwargs...)
 
-    svd(x_data, x_train, y_train[, bins_y]; kwargs...)
-
-    svd(R, g; kwargs...)
-
-
-Deconvolve the observed data applying the *SVD-based deconvolution algorithm* trained on the
-given training set.
-
-The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
-`train[y]`) must contain label/observation indices rather than actual values. All expected
-indices in `y_train` are optionally provided as `bins_y`. Alternatively, the detector
-response matrix `R` and the observed density vector `g` can be given directly.
-
+The *SVD-based* deconvolution method, using a `binning` to discretize the observable features.
 
 **Keyword arguments**
 
 - `effective_rank = -1`
   is a regularization parameter which defines the effective rank of the solution. This rank
   must be <= dim(f). Any value smaller than one results turns off regularization.
-- `N = length(x_data)`
-  is the number of observations. In the third form of the method, `N=sum(g)` is the default,
-  assuming that `g` contains absolute counts, not probabilities.
+- `N = sum(g)`
+  is the number of observations.
 - `B = DeconvUtil.cov_Poisson(g, N)`
   is the varianca-covariance matrix of the observed bins. The default value represents the
   assumption that each observed bin is Poisson-distributed with rate `g[i]*N`.
@@ -32,12 +42,30 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
-
-
-**Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
-ratio prior or a pdf prior, but only in the third form. In the other forms, `f_0` always
-specifies a pdf prior.
 """
+struct SVD <: DiscreteMethod
+    binning :: Binning
+    B :: Matrix{Float64}
+    effective_rank :: Int
+    epsilon_C :: Float64
+    fit_ratios :: Bool
+    n_bins_y :: Int
+    N :: Int
+    SVD(binning :: Binning;
+        B          :: Matrix{Float64} = Matrix{Float64}(undef, 0, 0),
+        effective_rank :: Int = -1,
+        epsilon_C  :: Float64 = 1e-3,
+        fit_ratios :: Bool    = false,
+        n_bins_y   :: Int     = -1,
+        N          :: Int     = -1
+    ) = new(binning, B, effective_rank, epsilon_C, fit_ratios, n_bins_y, N)
+end
+
+binning(svd::SVD) = svd.binning
+expects_normalized_R(svd::SVD) = !svd.fit_ratios
+expects_normalized_g(svd::SVD) = false
+expected_n_bins_y(svd::SVD) = svd.n_bins_y
+
 svd( data   :: AbstractDataFrame,
      train  :: AbstractDataFrame,
      x      :: Symbol,
@@ -46,48 +74,45 @@ svd( data   :: AbstractDataFrame,
      kwargs... ) =
   svd(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
 
-
 # Vector form
 function svd( x_data  :: AbstractVector{T},
               x_train :: AbstractVector{T},
               y_train :: AbstractVector{T},
               bins_y  :: AbstractVector{T} = 1:maximum(y_train);
               kwargs... ) where T<:Int
-    kwdict = Dict{Symbol, Any}(kwargs)
-    if !haskey(kwdict, :N) # number of observations must be set
-        kwdict[:N] = length(x_data)
-    end
-    return _discrete_deconvolution(svd, x_data, x_train, y_train, bins_y, kwdict)
+    error("No deprecation redirection implemented")
 end
 
-function svd(R::Matrix{TR}, g::Vector{Tg};
-             effective_rank::Int = -1,
-             N::Int = sum(Int64, g),
-             B::Matrix{TB} = DeconvUtil.cov_Poisson(g, N),
-             epsilon_C::Float64 = 1e-3,
-             fit_ratios::Bool = false,
-             kwargs...) where {TR<:Number, Tg<:Number, TB<:Number}
+function deconvolve(
+        svd::SVD,
+        R::Matrix{T_R},
+        g::Vector{T_g},
+        label_sanitizer::LabelSanitizer,
+        f_trn::Vector{T_f}
+        ) where {T_R<:Number,T_g<:Number,T_f<:Number}
 
     # check arguments
-    if size(R, 1) != length(g)
-        throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
-    elseif size(B, 1) != length(g) || size(B, 2) != length(g)
+    check_discrete_arguments(R, g)
+    N = svd.N > 0 ? svd.N : sum(g) # the configured value or the default
+    B = length(svd.B) > 0 ? svd.B : DeconvUtil.cov_Poisson(g, N)
+    effective_rank = svd.effective_rank
+    if size(B, 1) != length(g) || size(B, 2) != length(g)
         throw(DimensionMismatch("One of dim(B) = $(size(B)) is not equal to the observable dimension $(length(g))"))
     elseif effective_rank > size(R, 2)
         @warn "Assuming effective_rank = $(size(R, 2)) instead of $(effective_rank) because effective_rank <= dim(f) is required"
         effective_rank = size(R, 2)
     end
-    inv_C = inv(_svd_C(size(R, 2), epsilon_C))
-    
+    inv_C = LinearAlgebra.inv(_svd_C(size(R, 2), svd.epsilon_C))
+
     # 
     # Re-scaling and rotation steps 1-5 (without step 3) [hoecker1995svd]
     # 
-    r, Q = eigen(B) # transformation step 1
+    r, Q = LinearAlgebra.eigen(B) # transformation step 1
     R_tilde = Matrix(Diagonal(sqrt.(r))) * Q' * R # sqrt by def (33), where R_ii = r_i^2
     g_tilde = Matrix(Diagonal(sqrt.(r))) * Q' * g
     U, s, V = LinearAlgebra.svd(R_tilde * inv_C) # transformation step 4
     d = U' * g_tilde # transformation step 5
-    
+
     # 
     # Deconvolution steps 2 and 3 [hoecker1995svd]
     # 
@@ -96,7 +121,6 @@ function svd(R::Matrix{TR}, g::Vector{Tg};
     tau = (effective_rank > 0) ? s[effective_rank]^2 : 0.0 # deconvolution step 2
     z_tau = d .* s ./ ( s.^2 .+ tau )
     return inv_C * V * z_tau # step 3 (denoted as w_tau in the paper)
-    
 end
 
 # regularization matrix C from the SVD approach - the square of _svd_C is similar but not
@@ -113,4 +137,3 @@ _svd_C(m::Int, epsilon::Float64) =
            -1 => repeat([1], inner=m-1)
         ))
     end) + Matrix(epsilon * I, m, m)
-
