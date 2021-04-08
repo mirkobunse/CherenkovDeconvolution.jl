@@ -1,6 +1,6 @@
 # 
 # CherenkovDeconvolution.jl
-# Copyright 2018, 2019, 2020 Mirko Bunse
+# Copyright 2018-2021 Mirko Bunse
 # 
 # 
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
