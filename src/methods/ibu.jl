@@ -118,7 +118,11 @@ function deconvolve(
 
     # the initial estimate
     f = f_0
-    ibu.inspect(decode_estimate(label_sanitizer, f), 0, NaN, NaN)
+    f_inspect = f
+    if ibu.fit_ratios
+        f_inspect = f_inspect .* f_trn # convert a ratio solution to a pdf solution
+    end
+    ibu.inspect(DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_inspect), warn=false), 0, NaN, NaN)
 
     # iterative Bayesian deconvolution
     alpha_k = Inf
@@ -149,7 +153,7 @@ function deconvolve(
         if ibu.fit_ratios
             f_inspect = f_inspect .* f_trn # convert a ratio solution to a pdf solution
         end
-        ibu.inspect(decode_estimate(label_sanitizer, f_inspect), k, chi2s, alpha_k)
+        ibu.inspect(DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_inspect), warn=false), k, chi2s, alpha_k)
 
         # stop when convergence is assumed
         if chi2s < ibu.epsilon
@@ -161,7 +165,7 @@ function deconvolve(
     if ibu.fit_ratios
         f = f .* f_trn # convert a ratio solution to a pdf solution
     end
-    return decode_estimate(label_sanitizer, f) # return last estimate
+    return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f)) # return last estimate
 end
 
 # reverse the transfer with Bayes' rule, given the transfer matrix R and the prior f_0
