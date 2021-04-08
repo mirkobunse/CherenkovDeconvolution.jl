@@ -97,7 +97,7 @@ function deconvolve(
         ) where {I<:Integer}
 
     # sanitize and check the arguments
-    n_bins_y = max(m.n_bins_y, maximum(y_trn)) # number of classes/bins
+    n_bins_y = max(expected_n_bins_y(m), maximum(y_trn)) # number of classes/bins
     try
         check_arguments(X_obs, X_trn, y_trn)
     catch exception
@@ -116,23 +116,27 @@ function deconvolve(
     d = BinningDiscretizer(binning(m), X_trn, y_trn) # fit the binning strategy with labeled data
     x_obs = encode(d, X_obs) # apply it to the feature vectors
     x_trn = encode(d, X_trn)
-    R = DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=!is_fitting_ratios(m))
-    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=is_normalizing_g(m))
+    R = DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=expects_normalized_R(m))
+    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=expects_normalized_g(m))
+    f_trn = DeconvUtil.fit_pdf(y_trn)
 
     # call the actual solver (IBU, RUN, etc)
-    f_est = deconvolve(m, R, g, label_sanitizer)
-    if is_fitting_ratios(m)
-        f_est = f_est .* DeconvUtil.fit_pdf(y_trn) # convert a ratio solution to a pdf solution
-    end
-    return f_est
+    return deconvolve(m, R, g, label_sanitizer, f_trn)
 end
 
 # required API for discrete methods
-deconvolve(m::DiscreteMethod, R::Matrix{T_R}, g::Vector{T_g}, s::LabelSanitizer) where {T_R<:Number, T_g<:Number} =
+deconvolve(
+        m::DiscreteMethod,
+        R::Matrix{T_R},
+        g::Vector{T_g},
+        label_sanitizer::LabelSanitizer,
+        f_trn::Vector{T_f}
+        ) where {T_R<:Number,T_g<:Number,T_f<:Number} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 binning(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
-is_fitting_ratios(m::DiscreteMethod) = false # default
-is_normalizing_g(m::DiscreteMethod) = true # default
+expects_normalized_R(m::DiscreteMethod) = false # default
+expects_normalized_g(m::DiscreteMethod) = true # default
+expected_n_bins_y(m::DiscreteMethod) = 0
 
 export dsea, ibu, p_run, run, svd
 
@@ -234,6 +238,16 @@ check_arguments(X_obs::AbstractArray{T,N}, X_trn::AbstractArray{T,N}, y_trn::Abs
         throw(ArgumentError("There are no features in the data (X_obs, X_trn)"))
     elseif all(y_trn .== y_trn[1])
         throw(LoneClassException(y_trn[1]))
+    end
+
+"""
+    check_discrete_arguments(R, g)
+
+Throw meaningful exceptions if the input data of a discrete deconvolution is defective.
+"""
+check_discrete_arguments(R::Matrix{T_R}, g::AbstractArray{T_g}) where {T_R<:Number,T_g<:Number} =
+    if size(R, 1) != length(g)
+        throw(ArgumentError("dim(g) = $(length(g)) != $(size(R, 1)), the observable dimension of R"))
     end
 
 """
