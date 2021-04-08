@@ -72,7 +72,7 @@ struct RUN <: DiscreteMethod
         log_constant      :: Float64  = 1/18394,
         n_bins_y          :: Int      = -1,
         n_df              :: Int      = typemax(Int)
-    ) = new(binning, acceptance_correction, ac_regularisation, epsilon, fit_ratios, inspect, K, log_constant, n_bins_y)
+    ) = new(binning, acceptance_correction, ac_regularisation, epsilon, fit_ratios, inspect, K, log_constant, n_bins_y, n_df)
 end
 
 binning(run::RUN) = run.binning

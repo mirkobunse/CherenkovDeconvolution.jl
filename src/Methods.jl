@@ -143,7 +143,7 @@ export dsea, ibu, p_run, run, svd
 # deconvolution methods
 include("methods/svd.jl")
 include("methods/run.jl")
-include("methods/p_run.jl")
+include("methods/prun.jl")
 include("methods/ibu.jl")
 include("methods/dsea.jl")
 
