@@ -1,36 +1,37 @@
 # 
 # Unit tests for the Methods module
 # 
-@testset "CherenkovDeconvolution.Methods, as tested in test/Methods.jl" begin
+@testset "Methods.LabelSanitizer, as tested in test/Methods.jl" begin
 
     # test the recoding of labels
     y = [1, 4, 3, 3, 4, 1, 3] # 2 is missing
-    recode_dict, y_rec = Methods._recode_indices(1:4, y)
-    @test findall(y .== 1) == findall(y_rec .== 1)
-    @test findall(y .== 3) == findall(y_rec .== 2)
-    @test findall(y .== 4) == findall(y_rec .== 3)
-    @test map(i -> recode_dict[i], y_rec) == y
+    s = LabelSanitizer(y)
+    @test s.bins == [1, 3, 4]
+    @test encode_labels(s, y) == [1, 3, 2, 2, 3, 1, 2]
+    @test encode_prior(s, [.1, .2, .3, .4]) == [.1, .3, .4]
+    @test decode_estimate(s, [.1, .2, .3]) == [.1, 0, .2, .3]
     
-    @test Methods._recode_result([.1, .2, .3], recode_dict) == [.1, 0, .2, .3]
+    y[y .== 4] .= 2 # 4 is missing this time
+    s = LabelSanitizer(y, 4) # we must specify the number of bins now
+    @test s.bins == [1, 2, 3]
+    @test encode_labels(s, y) == y # no recoding happens
+    @test encode_prior(s, [.1, .2, .3, .4]) == [.1, .2, .3]
+    @test decode_estimate(s, [.1, .2, .3]) == [.1, .2, .3, 0]
     
-    y[y .== 4] .= 2 # 4 is missing, instead
-    recode_dict, y_rec = Methods._recode_indices(1:4, y)
-    @test map(i -> recode_dict[i], y_rec) == y
-    @test Methods._recode_result([.1, .2, .3], recode_dict) == [.1, .2, .3, 0]
+    y = [1, 4, 4, 4, 4, 1, 4] # 2 and 3 are missing
+    s = LabelSanitizer(y)
+    @test s.bins == [1, 4]
+    @test encode_labels(s, y) == [1, 2, 2, 2, 2, 1, 2]
+    @test encode_prior(s, [.1, .2, .3, .4]) == [.1, .4]
+    @test decode_estimate(s, [.1, .2]) == [.1, 0, 0, .2]
     
-    y = [1, 4, 4, 4, 4, 1, 4] # 2 and 3 is missing
-    recode_dict, y_rec = Methods._recode_indices(1:4, y)
-    @test findall(y .== 1) == findall(y_rec .== 1)
-    @test findall(y .== 4) == findall(y_rec .== 2)
-    @test map(i -> recode_dict[i], y_rec) == y
-    
-    x1 = ones(Int64, 4) * 2 # 4 times the 2
-    x2 = ones(Int64, 3) * 4 # 3 times the 4
-    recode_dict, x1_rec, x2_rec = Methods._recode_indices(1:4, x1, x2)
-    @test x1_rec == ones(4)
-    @test x2_rec == ones(3) .* 2
-    @test map(i -> recode_dict[i], x1_rec) == x1
-    @test map(i -> recode_dict[i], x2_rec) == x2
+    y1 = ones(Int64, 4) * 2 # 4 times the 2
+    y2 = ones(Int64, 3) * 4 # 3 times the 4
+    s = LabelSanitizer(vcat(y1, y2), 4)
+    @test encode_labels(s, y1) == ones(4)
+    @test encode_labels(s, y2) == ones(3) .* 2
+    @test encode_prior(s, [.1, .2, .3, .4]) == [.2, .4]
+    @test decode_estimate(s, [.1, .2]) == [0, .1, 0, .2]
 
 end # testset
 

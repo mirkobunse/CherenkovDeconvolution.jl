@@ -218,7 +218,7 @@ check_prior(f_0::AbstractVector{T}, n_bins::Int) where {T<:Number} =
     end
 
 """
-    LabelSanitizer(y_trn, n_bins)
+    LabelSanitizer(y_trn, n_bins=maximum(y_trn))
 
 A sanitizer that
 
@@ -230,7 +230,7 @@ A sanitizer that
 struct LabelSanitizer
     bins::Vector{Int} # bins that actually appear
     n_bins::Int # assumed number of bins
-    LabelSanitizer(y_trn::AbstractVector{I}, n_bins::Int) where {I<:Integer} =
+    LabelSanitizer(y_trn::AbstractVector{I}, n_bins::Int=maximum(y_trn)) where {I<:Integer} =
         new(sort(unique(y_trn)), n_bins)
 end
 
