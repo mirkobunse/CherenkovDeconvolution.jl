@@ -43,6 +43,23 @@ export
     recover_estimate
 
 """
+    LabelSanitizer(y_trn, n_bins=maximum(y_trn))
+
+A sanitizer that
+
+- encodes labels and priors so that none of the resulting bins is empty.
+- decodes deconvolution results to recover the original (possibly empty) bins.
+
+**See also:** `encode_labels`, `encode_prior`, `decode_estimate`.
+"""
+struct LabelSanitizer
+    bins::Vector{Int} # bins that actually appear
+    n_bins::Int # assumed number of bins
+    LabelSanitizer(y_trn::AbstractVector{I}, n_bins::Int=maximum(y_trn)) where {I<:Integer} =
+        new(sort(unique(y_trn)), n_bins)
+end
+
+"""
     abstract type DeconvolutionMethod
 
 The supertype of all deconvolution methods.
@@ -79,7 +96,21 @@ function deconvolve(
         y_trn::AbstractVector{I}
         ) where {I<:Integer}
 
-    # TODO recode the input, the output, and inspections
+    # sanitize and check the arguments
+    n_bins_y = max(m.n_bins_y, maximum(y_trn)) # number of classes/bins
+    try
+        check_arguments(X_obs, X_trn, y_trn)
+    catch exception
+        if isa(exception, LoneClassException)
+            f_est = recover_estimate(exception, n_bins_y)
+            @warn "Only one label in the training set, returning a trivial estimate" f_est
+            return f_est
+        else
+            rethrow()
+        end
+    end
+    label_sanitizer = LabelSanitizer(y_trn, n_bins_y)
+    y_trn = encode_labels(label_sanitizer, y_trn) # encode labels for safety
 
     # discretize the problem statement into a system of linear equations
     d = BinningDiscretizer(binning(m), X_trn, y_trn) # fit the binning strategy with labeled data
@@ -89,7 +120,7 @@ function deconvolve(
     g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=is_normalizing_g(m))
 
     # call the actual solver (IBU, RUN, etc)
-    f_est = deconvolve(m, R, g)
+    f_est = deconvolve(m, R, g, label_sanitizer)
     if is_fitting_ratios(m)
         f_est = f_est .* DeconvUtil.fit_pdf(y_trn) # convert a ratio solution to a pdf solution
     end
@@ -97,10 +128,9 @@ function deconvolve(
 end
 
 # required API for discrete methods
-deconvolve(m::DiscreteMethod, R::Matrix{T_R}, g::Vector{T_g}) where {T_R<:Number, T_g<:Number} =
+deconvolve(m::DiscreteMethod, R::Matrix{T_R}, g::Vector{T_g}, s::LabelSanitizer) where {T_R<:Number, T_g<:Number} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 binning(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
-prior(m::DiscreteMethod) = nothing # a prior is optional
 is_fitting_ratios(m::DiscreteMethod) = false # default
 is_normalizing_g(m::DiscreteMethod) = true # default
 
@@ -215,23 +245,6 @@ check_prior(f_0::AbstractVector{T}, n_bins::Int) where {T<:Number} =
     if length(f_0) != n_bins
         throw(ArgumentError("dim(f_0) = $(length(f_0)) != $(n_bins), the number of bins"))
     end
-
-"""
-    LabelSanitizer(y_trn, n_bins=maximum(y_trn))
-
-A sanitizer that
-
-- encodes labels and priors so that none of the resulting bins is empty.
-- decodes deconvolution results to recover the original (possibly empty) bins.
-
-**See also:** `encode_labels`, `encode_prior`, `decode_estimate`.
-"""
-struct LabelSanitizer
-    bins::Vector{Int} # bins that actually appear
-    n_bins::Int # assumed number of bins
-    LabelSanitizer(y_trn::AbstractVector{I}, n_bins::Int=maximum(y_trn)) where {I<:Integer} =
-        new(sort(unique(y_trn)), n_bins)
-end
 
 """
     encode_labels(s::LabelSanitizer, y_trn)
