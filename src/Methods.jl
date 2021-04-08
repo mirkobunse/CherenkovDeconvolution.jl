@@ -113,6 +113,7 @@ function deconvolve(
     end
     label_sanitizer = LabelSanitizer(y_trn, n_bins_y)
     y_trn = encode_labels(label_sanitizer, y_trn) # encode labels for safety
+    initialize!(stepsize(m), X_obs, X_trn, y_trn) # initialize stepsizes
 
     # discretize the problem statement into a system of linear equations
     d = BinningDiscretizer(binning(m), X_trn, y_trn) # fit the binning strategy with labeled data
@@ -136,8 +137,9 @@ deconvolve(
         ) where {T_R<:Number,T_g<:Number,T_f<:Number} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 binning(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
-expects_normalized_R(m::DiscreteMethod) = false # default
-expects_normalized_g(m::DiscreteMethod) = true # default
+stepsize(m::DiscreteMethod) = DEFAULT_STEPSIZE # default
+expects_normalized_R(m::DiscreteMethod) = false
+expects_normalized_g(m::DiscreteMethod) = true
 expected_n_bins_y(m::DiscreteMethod) = 0
 
 # deconvolution methods

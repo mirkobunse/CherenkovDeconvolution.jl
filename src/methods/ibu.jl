@@ -72,6 +72,7 @@ struct IBU <: DiscreteMethod
 end
 
 binning(ibu::IBU) = ibu.binning
+stepsize(ibu::IBU) = ibu.stepsize
 expects_normalized_R(ibu::IBU) = !ibu.fit_ratios
 expects_normalized_g(ibu::IBU) = true # stick to the default
 expected_n_bins_y(ibu::IBU) = ibu.n_bins_y
@@ -142,7 +143,7 @@ function deconvolve(
 
         # == apply stepsize update ==
         p_k = f - f_prev_smooth
-        alpha_k = stepsize(ibu.stepsize, k, p_k, f_prev_smooth, alpha_k)
+        alpha_k = value(ibu.stepsize, k, p_k, f_prev_smooth, alpha_k)
         f = f_prev_smooth + alpha_k * p_k
         # = = = = = = = = = = = = =
 

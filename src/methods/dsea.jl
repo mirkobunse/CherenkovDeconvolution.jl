@@ -125,6 +125,7 @@ function deconvolve(
     end
     label_sanitizer = LabelSanitizer(y_trn, n_bins_y)
     y_trn = encode_labels(label_sanitizer, y_trn) # encode labels for safety
+    initialize!(dsea.stepsize, X_obs, X_trn, y_trn)
 
     # check and encode the prior
     f_0 = dsea.f_0
@@ -205,6 +206,6 @@ _dsea_reconstruct(proba::Matrix{Float64}) =
 function _dsea_step(k::Int64, f::Vector{Float64}, f_prev::Vector{Float64},
                     a_prev::Float64, alpha::Stepsize)
     p_k     = f - f_prev # search direction
-    alpha_k = stepsize(alpha, k, p_k, f_prev, a_prev) # function or float
+    alpha_k = value(alpha, k, p_k, f_prev, a_prev) # function or float
     return  f_prev + alpha_k * p_k,  alpha_k # return a tuple
 end

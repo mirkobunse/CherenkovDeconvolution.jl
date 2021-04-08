@@ -30,7 +30,14 @@ module Stepsizes
 
 using LinearAlgebra, Optim
 
-export ConstantStepsize, DEFAULT_STEPSIZE, ExpDecayStepsize, MulDecayStepsize, Stepsize, stepsize
+export
+    ConstantStepsize,
+    DEFAULT_STEPSIZE,
+    ExpDecayStepsize,
+    initialize!,
+    MulDecayStepsize,
+    Stepsize,
+    value
 
 """
     abstract type stepsize end
@@ -42,7 +49,7 @@ Abstract supertype for step sizes in deconvolution.
 abstract type Stepsize end
 
 """
-    stepsize(s, k, p, f, a)
+    value(s, k, p, f, a)
 
 Use the `Stepsize` object `s` to compute a step size for iteration number `k` with
 the search direction `p`, the previous estimate `f`, and the previous step size `a`.
@@ -50,8 +57,21 @@ the search direction `p`, the previous estimate `f`, and the previous step size 
 **See also:** `ConstantStepsize`, `RunStepsize`, `LsqStepsize`, `ExpDecayStepsize`,
 `MulDecayStepsize`.
 """
-stepsize(s::Stepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+value(s::Stepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
     throw(ArgumentError("Not implemented for type $(typeof(s))"))
+
+"""
+    initialize!(s, X_obs, X_trn, y_trn)
+
+Prepare the stepsize strategy `s` with the observed features in `X_obs` and the
+training set `(X_trn, y_trn)`.
+"""
+initialize!(
+        s::Stepsize,
+        X_obs::AbstractArray{T,N},
+        X_trn::AbstractArray{T,N},
+        y_trn::AbstractVector{I}
+        ) where {T,N,I<:Integer} = s # there's nothing to prepare by default
 
 """
     ConstantStepsize(alpha)
@@ -61,7 +81,7 @@ Choose the constant step size `alpha` in every iteration.
 struct ConstantStepsize <: Stepsize
     alpha::Float64
 end
-stepsize(s::ConstantStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+value(s::ConstantStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
     s.alpha
 
 """
@@ -69,14 +89,14 @@ stepsize(s::ConstantStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a:
 
 Reduce the first stepsize `a` by `eta` in each iteration:
 
-    stepsize(ExpDecayStepsize(eta, a), k, ...) == a * eta^(k-1)
+    value(ExpDecayStepsize(eta, a), k, ...) == a * eta^(k-1)
 """
 struct ExpDecayStepsize <: Stepsize
     eta::Float64
     a::Float64
     ExpDecayStepsize(eta::Float64, a::Float64=1.0) = new(eta, a)
 end
-stepsize(s::ExpDecayStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+value(s::ExpDecayStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
     s.a * s.eta^(k-1)
 
 """
@@ -84,14 +104,14 @@ stepsize(s::ExpDecayStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a:
 
 Reduce the first stepsize `a` by `eta` in each iteration:
 
-    stepsize(MulDecayStepsize(eta, a), k, ...) == a * k^(eta-1)
+    value(MulDecayStepsize(eta, a), k, ...) == a * k^(eta-1)
 """
 struct MulDecayStepsize <: Stepsize
     eta::Float64
     a::Float64
     MulDecayStepsize(eta::Float64, a::Float64=1.0) = new(eta, a)
 end
-stepsize(s::MulDecayStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+value(s::MulDecayStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
     s.a * k^(s.eta-1)
 
 """
