@@ -30,7 +30,18 @@ using DataFrames, LinearAlgebra, Optim
 using ..DeconvUtil, ..Binnings
 import ..DEFAULT_STEPSIZE, ..Stepsize, ..stepsize
 
-export DeconvolutionMethod, deconvolve, DiscreteMethod
+export
+    check_arguments,
+    check_prior,
+    decode_estimate,
+    DeconvolutionMethod,
+    deconvolve,
+    DiscreteMethod,
+    encode_labels,
+    encode_prior,
+    LabelSanitizer,
+    LoneClassException,
+    recover_estimate
 
 """
     abstract type DeconvolutionMethod
@@ -47,10 +58,10 @@ trained on the features `X_trn` and the corresponding labels `y_trn`.
 """
 deconvolve(
         m::DeconvolutionMethod,
-        X_obs::AbstractArray,
-        X_trn::AbstractArray,
+        X_obs::AbstractArray{T,N},
+        X_trn::AbstractArray{T,N},
         y_trn::AbstractVector{I}
-        ) where {I<:Integer} =
+        ) where {T,N,I<:Integer} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 
 """
@@ -150,6 +161,120 @@ function _discrete_deconvolution( solver  :: Function,
     end
     return DeconvUtil.normalizepdf(_recode_result(f_est, recode_dict)) # revert recoding of labels
 end
+
+
+
+"""
+    LoneClassException(label)
+
+An exception thrown by `check_arguments` when only one class is in the training set.
+
+**See also:** `recover_estimate`
+"""
+struct LoneClassException <: Exception
+    label::Int
+end
+Base.show(io::IO, x::LoneClassException) =
+    print(io, "LoneClassException($(x.label)): Only a single label occurs in training set.")
+
+"""
+    recover_estimate(x::LoneClassException, n_bins=1)
+
+Recover a trivial deconvolution result from `x`, in which all bins are zero, except
+for the one that occured in the training set.
+"""
+function recover_estimate(x::LoneClassException, n_bins::Int=1)
+    f_est = zeros(n_bins)
+    f_est[x.label] = 1
+    return f_est
+end
+
+"""
+    check_arguments(X_obs, X_trn, y_trn)
+
+Throw meaningful exceptions if the input data of a deconvolution run is defective.
+"""
+check_arguments(X_obs::AbstractArray{T,N}, X_trn::AbstractArray{T,N}, y_trn::AbstractVector{I}) where {T,N,I<:Integer} =
+    if size(X_obs, 2) != size(X_trn, 2)
+        throw(ArgumentError("X_obs and X_trn do not have the same number of features"))
+    elseif size(X_trn, 1) != length(y_trn)
+        throw(ArgumentError("X_trn and y_trn do not represent the same number of samples"))
+    elseif size(X_trn, 1) == 0
+        throw(ArgumentError("There are no samples in the training set (X_trn, y_trn)"))
+    elseif size(X_trn, 2) == 0
+        throw(ArgumentError("There are no features in the data (X_obs, X_trn)"))
+    elseif all(y_trn .== y_trn[1])
+        throw(LoneClassException(y_trn[1]))
+    end
+
+"""
+    check_prior(f_0, n_bins)
+
+Throw meaningful exceptions if the input prior of a deconvolution run is defective.
+"""
+check_prior(f_0::AbstractVector{T}, n_bins::Int) where {T<:Number} =
+    if length(f_0) != n_bins
+        throw(ArgumentError("dim(f_0) = $(length(f_0)) != $(n_bins), the number of bins"))
+    end
+
+"""
+    LabelSanitizer(y_trn, n_bins)
+
+A sanitizer that
+
+- encodes labels and priors so that none of the resulting bins is empty.
+- decodes deconvolution results to recover the original (possibly empty) bins.
+
+**See also:** `encode_labels`, `encode_prior`, `decode_estimate`.
+"""
+struct LabelSanitizer
+    bins::Vector{Int} # bins that actually appear
+    n_bins::Int # assumed number of bins
+    LabelSanitizer(y_trn::AbstractVector{I}, n_bins::Int) where {I<:Integer} =
+        new(sort(unique(y_trn)), n_bins)
+end
+
+"""
+    encode_labels(s::LabelSanitizer, y_trn)
+
+Encode the labels `y_trn` so that all values from `1` to `max(y_trn)` occur.
+
+**See also:** `encode_prior`, `decode_estimate`.
+"""
+function encode_labels(s::LabelSanitizer, y_trn::AbstractVector{I}) where {I<:Integer}
+    encoder = Dict(zip(s.bins, 1:length(s.bins)))
+    return map(y -> encoder[y], y_trn)
+end
+
+"""
+    encode_prior(s::LabelSanitizer, f_0)
+
+Encode the prior `f_0` to be consistent with the encoded labels.
+
+**See also:** `encode_labels`, `decode_estimate`.
+"""
+encode_prior(s::LabelSanitizer, f_0::AbstractVector{T}) where {T<:Number} = f_0[s.bins]
+
+"""
+    decode_estimate(s::LabelSanitizer, f)
+
+Recover the original bins in a deconvolution result `f` after encoding the labels.
+
+**See also:** `encode_labels`, `encode_prior`.
+"""
+decode_estimate(s::LabelSanitizer, f::Vector{Float64}) where {I<:Integer} =
+    decode_estimate(s, convert(Matrix, f'))[:] # treat f like a 1xN matrix
+
+# version for probability matrices (e.g., for DSEA contributions)
+function decode_estimate(s::LabelSanitizer, p::Matrix{Float64}) where {I<:Integer}
+    decoder = Dict(zip(1:length(s.bins), s.bins))
+    r = zeros(size(p, 1), s.n_bins)
+    for (k, v) in decoder
+        r[:, v] = p[:, k]
+    end
+    return r
+end
+
 
 # check and repair the f_0 argument
 function _check_prior(f_0::Vector{Float64}, m::Int64, fit_ratios::Bool=false)
