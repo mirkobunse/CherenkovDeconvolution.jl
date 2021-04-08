@@ -56,6 +56,48 @@ function Stepsizes.value(s::OptimizedStepsize, k::Int, p::Vector{Float64}, f::Ve
     end
 end
 
+# the DiscreteStepsize implements the RunStepsize and LsqStepsize
+abstract type DiscreteStepsizeObjective end
+struct DiscreteStepsize{O<:DiscreteStepsizeObjective} <: Stepsize
+    is_initialized :: Ref{Bool} # mutable field
+    optimized_stepsize :: Ref{OptimizedStepsize}
+    binning :: Binning
+    decay :: Bool
+    tau :: Float64
+    warn :: Bool
+end
+
+Stepsizes.value(s::DiscreteStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
+    if s.is_initialized[]
+        Stepsizes.value(s.optimized_stepsize[], k, p, f, a)
+    else
+        throw(ArgumentError("The stepsize is not yet initialized"))
+    end
+
+function Stepsizes.initialize!(
+        s::DiscreteStepsize,
+        X_obs::AbstractArray{T,N},
+        X_trn::AbstractArray{T,N},
+        y_trn::AbstractVector{I}
+        ) where {T,N,I<:Integer}
+    # discretize the problem statement into a system of linear equations
+    d = BinningDiscretizer(s.binning, X_trn, y_trn) # fit the binning strategy with labeled data
+    x_obs = encode(d, X_obs) # apply it to the feature vectors
+    x_trn = encode(d, X_trn)
+    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=false); warn=s.warn)
+    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=false) # absolute counts instead of pdf
+
+    # update the stepsize
+    s.optimized_stepsize[] = OptimizedStepsize(objective(s, R, g), s.decay)
+    s.is_initialized[] = true
+    return s
+end
+
+struct RunObjective <: DiscreteStepsizeObjective end
+struct LsqObjective <: DiscreteStepsizeObjective end
+const RunStepsize = DiscreteStepsize{RunObjective}
+const LsqStepsize = DiscreteStepsize{LsqObjective}
+
 """
     RunStepsize(binning; kwargs...)
 
@@ -71,51 +113,15 @@ of the current iteration, much like in the `RUN` deconvolution method.
 - `warn = false`
   specifies whether warnings should be emitted for debugging purposes.
 """
-struct RunStepsize <: Stepsize
-    is_initialized :: Ref{Bool} # mutable field
-    optimized_stepsize :: Ref{OptimizedStepsize}
-    binning :: Binning
-    decay :: Bool
-    tau :: Float64
-    warn :: Bool
-    RunStepsize(
-        binning :: Binning;
-        decay   :: Bool = false,
-        tau     :: Float64 = 0.0,
-        warn    :: Bool = false
-    ) = new(Ref{Bool}(false), Ref{OptimizedStepsize}(), binning, decay, tau, warn)
-end
+RunStepsize(binning::Binning; decay::Bool=false, tau::Float64=0.0, warn::Bool=false) =
+    RunStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), binning, decay, tau, warn)
 
-Stepsizes.value(s::RunStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
-    if s.is_initialized[]
-        Stepsizes.value(s.optimized_stepsize[], k, p, f, a)
-    else
-        throw(ArgumentError("The stepsize is not yet initialized"))
-    end
-
-function Stepsizes.initialize!(
-        s::RunStepsize,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
-        y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer}
-    # discretize the problem statement into a system of linear equations
-    d = BinningDiscretizer(s.binning, X_trn, y_trn) # fit the binning strategy with labeled data
-    x_obs = encode(d, X_obs) # apply it to the feature vectors
-    x_trn = encode(d, X_trn)
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=false); warn=s.warn)
-    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=false) # absolute counts instead of pdf
-
-    # set up the negative log likelihood function to be minimized
+# set up the negative log likelihood function to be minimized
+function objective(s::RunStepsize, R::Matrix{Float64}, g::Vector{Int})
     C = Methods._tikhonov_binning(size(R, 2)) # regularization matrix (from run.jl)
-    maxl_l = Methods._maxl_l(R, g)            # function of f (from run.jl)
-    maxl_C = Methods._C_l(s.tau, C)           # regularization term (from run.jl)
-    objective = f -> maxl_l(f) + maxl_C(f)    # regularized objective function
-
-    # update the stepsize
-    s.optimized_stepsize[] = OptimizedStepsize(objective, s.decay)
-    s.is_initialized[] = true
-    return s
+    maxl_l = Methods._maxl_l(R, g)    # function of f (from run.jl)
+    maxl_C = Methods._C_l(s.tau, C)   # regularization term (from run.jl)
+    return f -> maxl_l(f) + maxl_C(f) # regularized objective function
 end
 
 """
@@ -133,51 +139,15 @@ current iteration.
 - `warn = false`
   specifies whether warnings should be emitted for debugging purposes.
 """
-struct LsqStepsize <: Stepsize
-    is_initialized :: Ref{Bool} # mutable field
-    optimized_stepsize :: Ref{OptimizedStepsize}
-    binning :: Binning
-    decay :: Bool
-    tau :: Float64
-    warn :: Bool
-    LsqStepsize(
-        binning :: Binning;
-        decay   :: Bool = false,
-        tau     :: Float64 = 0.0,
-        warn    :: Bool = false
-    ) = new(Ref{Bool}(false), Ref{OptimizedStepsize}(), binning, decay, tau, warn)
-end
+LsqStepsize(binning::Binning; decay::Bool=false, tau::Float64=0.0, warn::Bool=false) =
+    LsqStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), binning, decay, tau, warn)
 
-Stepsizes.value(s::LsqStepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
-    if s.is_initialized[]
-        Stepsizes.value(s.optimized_stepsize[], k, p, f, a)
-    else
-        throw(ArgumentError("The stepsize is not yet initialized"))
-    end
-
-function Stepsizes.initialize!(
-        s::LsqStepsize,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
-        y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer}
-    # discretize the problem statement into a system of linear equations
-    d = BinningDiscretizer(s.binning, X_trn, y_trn) # fit the binning strategy with labeled data
-    x_obs = encode(d, X_obs) # apply it to the feature vectors
-    x_trn = encode(d, X_trn)
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=false); warn=s.warn)
-    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=false) # absolute counts instead of pdf
-
-    # set up the negative least-squares function to be minimized
-    C = diagm(0 => ones(size(R, 2)))     # minimum-norm regularization matrix
-    lsq_l = Methods._lsq_l(R, g)         # function of f (from run.jl)
-    lsq_C = Methods._C_l(s.tau, C)       # regularization term (from run.jl)
-    objective = f -> lsq_l(f) + lsq_C(f) # regularized objective function
-
-    # update the stepsize
-    s.optimized_stepsize[] = OptimizedStepsize(objective, s.decay)
-    s.is_initialized[] = true
-    return s
+# set up the negative least-squares function to be minimized
+function objective(s::LsqStepsize, R::Matrix{Float64}, g::Vector{Int})
+    C = diagm(0 => ones(size(R, 2))) # minimum-norm regularization matrix
+    lsq_l = Methods._lsq_l(R, g)     # function of f (from run.jl)
+    lsq_C = Methods._C_l(s.tau, C)   # regularization term (from run.jl)
+    return f -> lsq_l(f) + lsq_C(f)  # regularized objective function
 end
 
 # range of admissible alpha values
