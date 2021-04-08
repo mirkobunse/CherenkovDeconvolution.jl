@@ -120,7 +120,8 @@ function deconvolve(
     # with in the _discrete_deconvolution wrapper.
     tau = (effective_rank > 0) ? s[effective_rank]^2 : 0.0 # deconvolution step 2
     z_tau = d .* s ./ ( s.^2 .+ tau )
-    return inv_C * V * z_tau # step 3 (denoted as w_tau in the paper)
+    f_est = inv_C * V * z_tau # step 3 (denoted as w_tau in the paper)
+    return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_est))
 end
 
 # regularization matrix C from the SVD approach - the square of _svd_C is similar but not
