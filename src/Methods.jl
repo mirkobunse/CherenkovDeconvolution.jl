@@ -275,9 +275,9 @@ function decode_estimate(s::LabelSanitizer, p::Matrix{Float64}) where {I<:Intege
     return r
 end
 
-
 # check and repair the f_0 argument
 function _check_prior(f_0::Vector{Float64}, m::Int64, fit_ratios::Bool=false)
+    Base.depwarn("`_check_prior` is deprecated, use `check_prior` with custom ratio handling instead.", :_check_prior)
     if length(f_0) == 0
         return fit_ratios ? ones(m) : ones(m) ./ m
     elseif length(f_0) != m
@@ -292,20 +292,12 @@ end
 _check_prior(f_0::Vector{Float64}, recode_dict::Dict{T, T}) where T<:Int =
     _check_prior(length(f_0) > 0 ? f_0[sort(setdiff(collect(values(recode_dict)), [-1]))] : f_0, length(recode_dict)-1 )
 
-# recode indices to resemble a unit range (no missing labels in between)
 function _recode_indices(bins::AbstractVector{T}, inds::AbstractVector{T}...) where T<:Int
-    
-    # recode the training set
-    inds_bins = sort(unique(vcat(inds...)))
-    inds_dict = Dict(zip(inds_bins, 1:length(inds_bins)))
-    inds_rec  = map(ind -> map(i -> inds_dict[i], ind), inds)
-    
-    # set up reverse recoding applied in _recode_result
-    recode_dict = Dict(zip(values(inds_dict), keys(inds_dict))) # map from values to keys
-    recode_dict[-1] = maximum(bins) # the highest actual bin (may not be in y_train)
-    
-    return recode_dict, inds_rec...
-    
+    Base.depwarn("`_recode_indices` is deprecated, use `encode_labels` instead.", :_recode_indices)
+    s = LabelSanitizer(vcat(inds...), maximum(bins))
+    d = Dict(zip(1:length(s.bins), s.bins)) # decoder
+    d[-1] = s.n_bins # the highest assumed bin
+    return d, [encode_labels(s, i) for i in inds]...
 end
 
 # recode a deconvolution result by reverting the initial recoding of the data
@@ -314,6 +306,7 @@ _recode_result(f::Vector{Float64}, recode_dict::Dict{T, T}) where T<:Int =
 
 # like above but for probability matrices (used if DSEA returns contributions)
 function _recode_result(proba::Matrix{Float64}, recode_dict::Dict{T, T}) where T<:Int
+    Base.depwarn("`_recode_result` is deprecated, use `decode_estimate` instead.", :_recode_result)
     r = zeros(Float64, size(proba, 1), maximum(values(recode_dict)))
     for (k, v) in recode_dict
         if k != -1
