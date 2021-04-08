@@ -64,7 +64,7 @@ struct IBU <: DiscreteMethod
         f_0        :: Vector{Float64} = Float64[],
         fit_ratios :: Bool     = false,
         inspect    :: Function = (args...) -> nothing,
-        K          :: Int64    = 1,
+        K          :: Int64    = 3,
         n_bins_y   :: Int      = -1,
         smoothing  :: Function = Base.identity,
         stepsize   :: Stepsize = DEFAULT_STEPSIZE
