@@ -66,14 +66,6 @@ expects_normalized_R(svd::SVD) = !svd.fit_ratios
 expects_normalized_g(svd::SVD) = false
 expected_n_bins_y(svd::SVD) = svd.n_bins_y
 
-function svd( x_data  :: AbstractVector{T},
-              x_train :: AbstractVector{T},
-              y_train :: AbstractVector{T},
-              bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-              kwargs... ) where T<:Int
-    error("No deprecation redirection implemented")
-end
-
 function deconvolve(
         svd::SVD,
         R::Matrix{T_R},
@@ -129,3 +121,25 @@ _svd_C(m::Int, epsilon::Float64) =
            -1 => repeat([1], inner=m-1)
         ))
     end) + Matrix(epsilon * I, m, m)
+
+# deprecated syntax (the IdentityBinning is defined in src/methods/run.jl)
+export svd
+function svd(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "`svd(data, config)` is deprecated; ",
+        "please call `deconvolve(SVD(config), data)` instead"
+    ]), :svd)
+    svd = SVD(IdentityBinning(); n_bins_y=length(bins_y), kwargs...)
+    return deconvolve(
+        svd,
+        reshape(x_obs, (length(x_obs), 1)), # treat as a matrix
+        reshape(x_trn, (length(x_trn), 1)),
+        y_trn
+    )
+end

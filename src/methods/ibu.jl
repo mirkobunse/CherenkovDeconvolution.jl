@@ -77,13 +77,6 @@ expects_normalized_R(ibu::IBU) = !ibu.fit_ratios
 expects_normalized_g(ibu::IBU) = true # stick to the default
 expected_n_bins_y(ibu::IBU) = ibu.n_bins_y
 
-ibu( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  error("No deprecation redirection implemented")
-
 function deconvolve(
         ibu::IBU,
         R::Matrix{T_R},
@@ -167,4 +160,26 @@ function _ibu_reverse_transfer(R::Matrix{T}, f_0::Vector{Float64}) where T<:Numb
         B[:, j] = R[j, :] .* f_0 ./ dot(R[j, :], f_0)
     end
     return B
+end
+
+# deprecated syntax (the IdentityBinning is defined in src/methods/run.jl)
+export ibu
+function ibu(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "`ibu(data, config)` is deprecated; ",
+        "please call `deconvolve(IBU(config), data)` instead"
+    ]), :ibu)
+    ibu = IBU(IdentityBinning(); n_bins_y=length(bins_y), kwargs...)
+    return deconvolve(
+        ibu,
+        reshape(x_obs, (length(x_obs), 1)), # treat as a matrix
+        reshape(x_trn, (length(x_trn), 1)),
+        y_trn
+    )
 end

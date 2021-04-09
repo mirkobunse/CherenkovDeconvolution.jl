@@ -83,13 +83,6 @@ expects_normalized_R(prun::PRUN) = !prun.fit_ratios
 expects_normalized_g(prun::PRUN) = false
 expected_n_bins_y(prun::PRUN) = prun.n_bins_y
 
-p_run( x_data  :: AbstractVector{T},
-       x_train :: AbstractVector{T},
-       y_train :: AbstractVector{T},
-       m_y  :: AbstractVector{T} = 1:maximum(y_train);
-       kwargs... ) where T<:Int =
-  error("No deprecation redirection implemented")
-
 function deconvolve(
         prun::PRUN,
         R::Matrix{T_R},
@@ -190,4 +183,26 @@ function deconvolve(
     epsilon = Optim.g_norm_trace(res)
     prun.inspect.(f, collect(0:k), epsilon) # make up leeway
     return f[k]
+end
+
+# deprecated syntax (the IdentityBinning is defined in src/methods/run.jl)
+export p_run
+function p_run(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "`p_run(data, config)` is deprecated; ",
+        "please call `deconvolve(PRUN(config), data)` instead"
+    ]), :p_run)
+    p_run = PRUN(IdentityBinning(); n_bins_y=length(bins_y), kwargs...)
+    return deconvolve(
+        p_run,
+        reshape(x_obs, (length(x_obs), 1)), # treat as a matrix
+        reshape(x_trn, (length(x_trn), 1)),
+        y_trn
+    )
 end
