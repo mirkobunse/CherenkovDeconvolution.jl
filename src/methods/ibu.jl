@@ -1,6 +1,6 @@
 # 
 # CherenkovDeconvolution.jl
-# Copyright 2018, 2019, 2020 Mirko Bunse
+# Copyright 2018-2021 Mirko Bunse
 # 
 # 
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
@@ -19,22 +19,13 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
+export IBU
+
 """
-    ibu(data, train, x, y[, bins_y]; kwargs...)
+    IBU(binning; kwargs...)
 
-    ibu(x_data, x_train, y_train[, bins_y]; kwargs...)
-
-    ibu(R, g; kwargs...)
-
-
-Deconvolve the observed data applying the *Iterative Bayesian Unfolding* trained on the
-given training set.
-
-The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
-`train[y]`) must contain label/observation indices rather than actual values. All expected
-indices in `y_train` are optionally provided as `bins_y`. Alternatively, the detector
-response matrix `R` and the observed density vector `g` can be given directly.
-
+The *Iterative Bayesian Unfolding* deconvolution method, using a `binning` to discretize
+the observable features.
 
 **Keyword arguments**
 
@@ -49,100 +40,117 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `epsilon = 0.0`
   is the minimum symmetric Chi Square distance between iterations. If the actual distance is
   below this threshold, convergence is assumed and the algorithm stops.
-- `alpha = DEFAULT_STEPSIZE`
+- `stepsize = DEFAULT_STEPSIZE`
   is the step size taken in every iteration.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 - `inspect = nothing`
-  is a function `(f_k::Vector, k::Int, chi2s::Float64, alphak::Float64) -> Any` optionally
+  is a function `(f_k::Vector, k::Int, chi2s::Float64, alpha_k::Float64) -> Any` optionally
   called in every iteration.
-- `loggingstream = DevNull`
-  is an optional `IO` stream to write log messages to.
-
-
-**Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
-ratio prior or a pdf prior, but only in the third form. In the other forms, `f_0` always
-specifies a pdf prior.
 """
-ibu( data   :: AbstractDataFrame,
-     train  :: AbstractDataFrame,
-     x      :: Symbol,
-     y      :: Symbol,
-     bins_y :: AbstractVector = 1:maximum(train[y]);
-     kwargs... ) =
-  ibu(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
+struct IBU <: DiscreteMethod
+    binning :: Binning
+    epsilon :: Float64
+    f_0 :: Vector{Float64}
+    fit_ratios :: Bool
+    inspect :: Function
+    K :: Int
+    n_bins_y :: Int
+    smoothing :: Function # TODO smoothing types
+    stepsize :: Stepsize
+    IBU(binning;
+        epsilon    :: Float64  = 0.0,
+        f_0        :: Vector{Float64} = Float64[],
+        fit_ratios :: Bool     = false,
+        inspect    :: Function = (args...) -> nothing,
+        K          :: Int64    = 3,
+        n_bins_y   :: Int      = -1,
+        smoothing  :: Function = Base.identity,
+        stepsize   :: Stepsize = DEFAULT_STEPSIZE
+    ) = new(binning, epsilon, f_0, fit_ratios, inspect, K, n_bins_y, smoothing, stepsize)
+end
 
-# Vector form
-ibu( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  _discrete_deconvolution(ibu, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs))
+binning(ibu::IBU) = ibu.binning
+stepsize(ibu::IBU) = ibu.stepsize
+expects_normalized_R(ibu::IBU) = !ibu.fit_ratios
+expects_normalized_g(ibu::IBU) = true # stick to the default
+expected_n_bins_y(ibu::IBU) = ibu.n_bins_y
 
-function ibu( R :: Matrix{TR},
-              g :: Vector{Tg};
-              f_0        :: Vector{Float64} = Float64[],
-              smoothing  :: Function        = Base.identity,
-              K          :: Int             = 3,
-              epsilon    :: Float64         = 0.0,
-              alpha      :: Stepsize        = DEFAULT_STEPSIZE,
-              fit_ratios :: Bool            = false,
-              inspect    :: Function        = (args...) -> nothing,
-              loggingstream :: IO = devnull,
-              kwargs... ) where {TR<:Number, Tg<:Number}
-    
-    # check arguments
-    if size(R, 1) != length(g)
-        throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
+function deconvolve(
+        ibu::IBU,
+        R::Matrix{T_R},
+        g::Vector{T_g},
+        label_sanitizer::LabelSanitizer,
+        f_trn::Vector{T_f}
+        ) where {T_R<:Number,T_g<:Number,T_f<:Number}
+
+    # check the arguments and encode the prior
+    check_discrete_arguments(R, g)
+    f_0 = ibu.f_0
+    if length(f_0) > 0 # only need to check if a prior is given
+        check_prior(f_0)
+        f_0 = DeconvUtil.normalizepdf(f_0)
+        if ibu.fit_ratios
+            f_0 = f_0 ./ decode_estimate(label_sanitizer, f_trn) # convert to a ratio prior
+        end
+    elseif ibu.fit_ratios # default prior for ratios
+        f_0 = ones(length(f_trn))
+    else # set a default uniform prior if none is given
+        f_0 = ones(length(f_trn)) ./ length(f_trn)
     end
-    
-    if loggingstream != devnull
-        @warn "The argument 'loggingstream' is deprecated in v0.1.0. Use the 'with_logger' functionality of julia-0.7 and above." _group=:depwarn
+    f_0 = encode_prior(label_sanitizer, f_0)
+
+    # the initial estimate
+    f = f_0
+    f_inspect = f
+    if ibu.fit_ratios
+        f_inspect = f_inspect .* f_trn # convert a ratio solution to a pdf solution
     end
-    
-    # initial estimate
-    f = _check_prior(f_0, size(R, 2), fit_ratios) # do not normalize if ratios are fitted
-    inspect(f, 0, NaN, NaN) # inspect prior
-    
+    ibu.inspect(DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_inspect), warn=false), 0, NaN, NaN)
+
     # iterative Bayesian deconvolution
-    alphak = Inf
-    for k in 1:K
-        
+    alpha_k = Inf
+    for k in 1:ibu.K
+
         # == smoothing in between iterations ==
-        f_prev_smooth = k > 1 ? smoothing(f) : f # do not smooth the initial estimate
+        f_prev_smooth = k > 1 ? ibu.smoothing(f) : f # do not smooth the initial estimate
         f_prev = f # unsmoothed estimate required for convergence check
         # = = = = = = = = = = = = = = = = = = =
-        
+
         # === apply Bayes' rule ===
         f = _ibu_reverse_transfer(R, f_prev_smooth) * g
-        if !fit_ratios
+        if !ibu.fit_ratios
             f = DeconvUtil.normalizepdf(f, warn=false)
         end
         # = = = = = = = = = = = = =
-        
+
         # == apply stepsize update ==
-        pk = f - f_prev_smooth
-        alphak = stepsize(alpha, k, pk, f_prev_smooth, alphak)
-        f = f_prev_smooth + alphak * pk
+        p_k = f - f_prev_smooth
+        alpha_k = value(ibu.stepsize, k, p_k, f_prev_smooth, alpha_k)
+        f = f_prev_smooth + alpha_k * p_k
         # = = = = = = = = = = = = =
 
         # monitor progress
         chi2s = DeconvUtil.chi2s(f_prev, f, false) # Chi Square distance between iterations
-        @debug "IBU iteration $k/$K (chi2s = $chi2s) with alpha = $(alphak)"
-        inspect(f, k, chi2s, alphak)
-        
+        @debug "IBU iteration $k/$(ibu.K) (chi2s = $chi2s) with alpha = $(alpha_k)"
+        f_inspect = f
+        if ibu.fit_ratios
+            f_inspect = f_inspect .* f_trn # convert a ratio solution to a pdf solution
+        end
+        ibu.inspect(DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_inspect), warn=false), k, chi2s, alpha_k)
+
         # stop when convergence is assumed
-        if chi2s < epsilon
-            @debug "IBU convergence assumed from chi2s = $chi2s < epsilon = $epsilon"
+        if chi2s < ibu.epsilon
+            @debug "IBU convergence assumed from chi2s = $chi2s < epsilon = $(ibu.epsilon)"
             break
         end
-        
     end
-    
-    return f # return last estimate
-    
+
+    if ibu.fit_ratios
+        f = f .* f_trn # convert a ratio solution to a pdf solution
+    end
+    return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f)) # return last estimate
 end
 
 # reverse the transfer with Bayes' rule, given the transfer matrix R and the prior f_0
@@ -154,3 +162,24 @@ function _ibu_reverse_transfer(R::Matrix{T}, f_0::Vector{Float64}) where T<:Numb
     return B
 end
 
+# deprecated syntax (the IdentityBinning is defined in src/methods/run.jl)
+export ibu
+function ibu(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "`ibu(data, config)` is deprecated; ",
+        "please call `deconvolve(IBU(config), data)` instead"
+    ]), :ibu)
+    ibu = IBU(IdentityBinning(); n_bins_y=length(bins_y), kwargs...)
+    return deconvolve(
+        ibu,
+        reshape(x_obs, (length(x_obs), 1)), # treat as a matrix
+        reshape(x_trn, (length(x_trn), 1)),
+        y_trn
+    )
+end

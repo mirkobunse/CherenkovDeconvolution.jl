@@ -4,7 +4,6 @@ authors = ["Mirko Bunse <mirko.bunse@cs.tu-dortmund.de>"]
 version = "0.3.0"
 
 [deps]
-DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Discretizers = "6e83dbb3-75ca-525b-8ae2-3751f0dd50b4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
@@ -17,7 +16,6 @@ ScikitLearnBase = "6e75b9c4-186b-50bd-896f-2d2496a4843e"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-DataFrames = "0.21"
 Discretizers = "3.2"
 Optim = "0.22, 1"
 Polynomials = "1.1"
@@ -29,6 +27,7 @@ StatsBase = "0.33"
 julia = "1"
 
 [extras]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 MLDataUtils = "cc2ba9b6-d476-5e6d-8eaf-a92d5412d41d"
 NBInclude = "0db19996-df87-5ea3-a455-e3a50d440464"
@@ -37,4 +36,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [targets]
-test = ["Distances", "MLDataUtils", "NBInclude", "Statistics", "Test", "YAML"]
+test = ["DataFrames", "Distances", "MLDataUtils", "NBInclude", "Statistics", "Test", "YAML"]

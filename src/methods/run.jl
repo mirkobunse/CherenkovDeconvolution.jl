@@ -1,6 +1,6 @@
 # 
 # CherenkovDeconvolution.jl
-# Copyright 2018, 2019, 2020 Mirko Bunse
+# Copyright 2018-2021 Mirko Bunse
 # 
 # 
 # Deconvolution methods for Cherenkov astronomy and other use cases in experimental physics.
@@ -19,22 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with CherenkovDeconvolution.jl.  If not, see <http://www.gnu.org/licenses/>.
 # 
+export RUN
+
 """
-    run(data, train, x, y[, bins_y]; kwargs...)
+    RUN(binning; kwargs...)
 
-    run(x_data, x_train, y_train[, bins_y]; kwargs...)
-
-    run(R, g; kwargs...)
-
-
-Deconvolve the observed data applying the *Regularized Unfolding* trained on the given
-training set.
-
-The vectors `x_data`, `x_train`, and `y_train` (or accordingly `data[x]`, `train[x]`, and
-`train[y]`) must contain label/observation indices rather than actual values. All expected
-indices in `y_train` are optionally provided as `bins_y`. Alternatively, the detector
-response matrix `R` and the observed density vector `g` can be given directly.
-
+The *Regularized Unfolding* method, using a `binning` to discretize the observable features.
 
 **Keyword arguments**
 
@@ -57,59 +47,58 @@ response matrix `R` and the observed density vector `g` can be given directly.
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
-- `loggingstream = devnull`
-  is an optional `IO` stream to write log messages to.
 - `fit_ratios = false`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
-
-
-**Caution:** According to the value of `fit_ratios`, the keyword argument `f_0` specifies a
-ratio prior or a pdf prior, but only in the third form. In the other forms, `f_0` always
-specifies a pdf prior.
 """
-run( data   :: AbstractDataFrame,
-     train  :: AbstractDataFrame,
-     x      :: Symbol,
-     y      :: Symbol,
-     bins_y :: AbstractVector = 1:maximum(train[y]);
-     kwargs... ) =
-  run(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
+struct RUN <: DiscreteMethod
+    binning :: Binning
+    acceptance_correction :: Union{Tuple{Function, Function}, Nothing}
+    ac_regularisation :: Bool
+    epsilon :: Float64
+    fit_ratios :: Bool
+    inspect :: Function
+    K :: Int
+    log_constant :: Float64
+    n_bins_y :: Int
+    n_df :: Int
+    RUN(binning;
+        acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
+        ac_regularisation :: Bool     = true,
+        epsilon           :: Float64  = 1e-6,
+        fit_ratios        :: Bool     = false,
+        inspect           :: Function = (args...) -> nothing,
+        K                 :: Int64    = 100,
+        log_constant      :: Float64  = 1/18394,
+        n_bins_y          :: Int      = -1,
+        n_df              :: Int      = typemax(Int)
+    ) = new(binning, acceptance_correction, ac_regularisation, epsilon, fit_ratios, inspect, K, log_constant, n_bins_y, n_df)
+end
 
+binning(run::RUN) = run.binning
+expects_normalized_R(run::RUN) = !run.fit_ratios
+expects_normalized_g(run::RUN) = false
+expected_n_bins_y(run::RUN) = run.n_bins_y
 
-# Vector form
-run( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  _discrete_deconvolution(run, x_data, x_train, y_train, bins_y, Dict{Symbol, Any}(kwargs), normalize_g=false)
+function deconvolve(
+        run::RUN,
+        R::Matrix{T_R},
+        g::Vector{T_g},
+        label_sanitizer::LabelSanitizer,
+        f_trn::Vector{T_f}
+        ) where {T_R<:Number,T_g<:Number,T_f<:Number}
 
-
-function run( R :: Matrix{TR},
-	          g :: Vector{Tg};
-              n_df    :: Number   = size(R, 2),
-              K       :: Int      = 100,
-              epsilon :: Float64  = 1e-6,
-              acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing, 
-              ac_regularisation     :: Bool    = true, 
-              log_constant          :: Float64 = 1/18394,
-              inspect :: Function = (args...) -> nothing,
-              loggingstream :: IO = devnull,
-              kwargs... ) where {TR<:Number, Tg<:Number}
-    
-    if any(g .<= 0) # limit unfolding to non-zero bins
+    # limit the unfolding to non-zero bins
+    if any(g .<= 0)
         nonzero = g .> 0
         @warn "Limiting RUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
         g = g[nonzero]
         R = R[nonzero, :]
     end
-    
+
     # check arguments
+    check_discrete_arguments(R, g)
     m = size(R, 2) # dimension of f
-    if size(R, 1) != length(g)
-        throw(DimensionMismatch("dim(g) = $(length(g)) is not equal to the observable dimension $(size(R, 1)) of R"))
-    end
     if m > size(R, 1)
         @warn "RUN is performed on more target than observable bins - results may be unsatisfactory"
     end
@@ -120,25 +109,22 @@ function run( R :: Matrix{TR},
     H_l = _maxl_H(R, g) # ..and its Hessian
     C   = _tikhonov_binning(m) # the Tikhonov matrix (not in l and its derivatives)
 
-     # set up acceptance correction
-    if acceptance_correction !== nothing
-        ac, inv_ac = acceptance_correction
+    # set up acceptance correction
+    ac_regularisation = run.ac_regularisation
+    a = nothing # the default
+    if run.acceptance_correction !== nothing
+        ac, inv_ac = run.acceptance_correction
         if ac_regularisation
             a = inv_ac(ones(m))
-        else
-            a = nothing
         end
-    else
-        if ac_regularisation
-            @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
-            ac_regularisation = false
-        end
-        a = nothing
+    elseif ac_regularisation
+        @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+        ac_regularisation = false
     end
-    
-    # initial estimate is the zero vector
+
+    # the initial estimate is the zero vector
     f = zeros(Float64, m)
-    
+
     # the first iteration is a least squares fit
     H_lsq = _lsq_H(R, g)(f)
     if !all(isfinite.(H_lsq))
@@ -155,12 +141,16 @@ function run( R :: Matrix{TR},
             rethrow(err)
         end
     end
-    inspect(f, 1, NaN, NaN)
-    
+    f_inspect = f
+    if run.fit_ratios
+        f_inspect = f_inspect .* f_trn # convert a ratio solution to a pdf solution
+    end
+    run.inspect(DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_inspect), warn=false), 1, NaN, NaN)
+
     # subsequent iterations maximize the likelihood
     l_prev = l(f) # loss from the previous iteration
-    for k in 2:K
-        
+    for k in 2:run.K
+
         # gradient and Hessian at the last estimate
         g_f = g_l(f)
         H_f = H_l(f)
@@ -168,18 +158,18 @@ function run( R :: Matrix{TR},
             @warn "MaxL hessian contains Infs or NaNs - replacing these by zero"
             H_f[.!(isfinite.(H_f))] .= 0.0
         end
-        
+
         # eigendecomposition of the Hessian: H_f == U*D*U' (complex conversion required if more y than x bins)
         eigen_H = eigen(H_f)
         U = eigen_H.vectors
         D = Matrix(Diagonal(real.(complex.(eigen_H.values) .^ (-1/2)))) # D^(-1/2)
-        
+
         # eigendecomposition of transformed Tikhonov matrix: C2 == U_C*S*U_C'
         eigen_C = eigen(Symmetric( D*U' * C * U*D ))
-        
+
         # select tau (special case: no regularization if n_df == m)
-        tau = n_df < m ? _tau(n_df, eigen_C.values) : 0.0
-        
+        tau = run.n_df < m ? _tau(run.n_df, eigen_C.values) : 0.0
+
         # 
         # Taking a step in the transformed problem and transforming back to the actual
         # solution is numerically difficult because the eigendecomposition introduces some
@@ -191,15 +181,13 @@ function run( R :: Matrix{TR},
         # f_2 = 1/2 * inv(eye(S) + tau*S) * (U*D*U_C)' * (H_f * f - g_f)
         # f   = (U*D*U_C) * f_2
         # 
-        g_f += _C_g(tau, C; a=a, log_constant=log_constant)(f) # regularized gradient
-        H_f += _C_H(tau, C; a=a, log_constant=log_constant)(f) # regularized Hessian
+        g_f += _C_g(tau, C; a=a, log_constant=run.log_constant)(f) # regularized gradient
+        H_f += _C_H(tau, C; a=a, log_constant=run.log_constant)(f) # regularized Hessian
         f += try
             - inv(H_f) * g_f
         catch err
-            
-            # try again with pseudo inverse
             if isa(err, SingularException) || isa(err, LAPACKException)
-                try
+                try # try again with pseudo inverse
                     step = - pinv(H_f) * g_f # update step
                     if isa(err, SingularException)
                         @warn "MaxL Hessian is singular - using pseudo inverse in RUN"
@@ -218,25 +206,31 @@ function run( R :: Matrix{TR},
             else
                 rethrow(err)
             end
-            
         end
-        
+
         # monitor progress
-        l_now = l(f) + _C_l(tau, C; a=a, ac_regularisation=ac_regularisation, log_constant=log_constant)(f)
+        l_now = l(f) + _C_l(tau, C; a=a, ac_regularisation=ac_regularisation, log_constant=run.log_constant)(f)
         ldiff = l_prev - l_now
-        @debug "RUN iteration $k/$K uses tau = $tau (ldiff = $ldiff)"
-        inspect(f, k, ldiff, tau)
-        
+        @debug "RUN iteration $k/$(run.K) uses tau = $tau (ldiff = $ldiff)"
+        f_inspect = f
+        if run.fit_ratios
+            f_inspect = f_inspect .* f_trn # convert a ratio solution to a pdf solution
+        end
+        run.inspect(DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_inspect), warn=false), k, ldiff, tau)
+
         # stop when convergence is assumed
-        if abs(ldiff) < epsilon
-            @debug "RUN convergence assumed from ldiff = $ldiff < epsilon = $epsilon"
+        if abs(ldiff) < run.epsilon
+            @debug "RUN convergence assumed from ldiff = $ldiff < epsilon = $(run.epsilon)"
             break
         end
         l_prev = l_now
-        
+
     end
-    return f
-    
+
+    if run.fit_ratios
+        f = f .* f_trn # convert a ratio solution to a pdf solution
+    end
+    return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f))
 end
 
 # Brute-force search of a tau satisfying the n_df relation
@@ -249,12 +243,12 @@ end
 function _tau(n_df::Number, taufunction::Function, min::Float64=-.01, max::Float64=-18.0, i::Int64=2)
     taus = 10 .^ range(min, stop=max, length=1000)
     ndfs = map(taufunction, taus)
-    
+
     best = findmin(abs.(ndfs .- n_df)) # tuple from difference and index of minimum
     tau  = taus[best[2]]
     ndf  = ndfs[best[2]]
     diff = best[1]
-    
+
     if i == 1
         return tau, ndf, [ diff ] # recursive anchor
     else
@@ -383,3 +377,32 @@ _tikhonov_binning(m::Int) =
                   -2 => repeat([1], inner=m-2) ))
     end
 
+# deprecated syntax
+export run
+struct IdentityBinning <: Binning end
+struct IdentityDiscretizer <: BinningDiscretizer{Int}
+    bins :: Vector{Int}
+end
+Binnings.BinningDiscretizer(b::IdentityBinning, X_trn, y_trn) =
+    IdentityDiscretizer(sort(unique(y_trn)))
+Binnings.encode(d::IdentityDiscretizer, X_obs) = X_obs[:]
+Binnings.bins(d::IdentityDiscretizer) = d.bins
+function run(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "`run(data, config)` is deprecated; ",
+        "please call `deconvolve(RUN(config), data)` instead"
+    ]), :run)
+    run = RUN(IdentityBinning(); n_bins_y=length(bins_y), kwargs...)
+    return deconvolve(
+        run,
+        reshape(x_obs, (length(x_obs), 1)), # treat as a matrix
+        reshape(x_trn, (length(x_trn), 1)),
+        y_trn
+    )
+end
