@@ -80,13 +80,6 @@ expects_normalized_R(run::RUN) = !run.fit_ratios
 expects_normalized_g(run::RUN) = false
 expected_n_bins_y(run::RUN) = run.n_bins_y
 
-run( x_data  :: AbstractVector{T},
-     x_train :: AbstractVector{T},
-     y_train :: AbstractVector{T},
-     bins_y  :: AbstractVector{T} = 1:maximum(y_train);
-     kwargs... ) where T<:Int =
-  error("No deprecation redirection implemented")
-
 function deconvolve(
         run::RUN,
         R::Matrix{T_R},
@@ -383,3 +376,33 @@ _tikhonov_binning(m::Int) =
                    2 => repeat([1], inner=m-2),
                   -2 => repeat([1], inner=m-2) ))
     end
+
+# deprecated syntax
+export run
+struct IdentityBinning <: Binning end
+struct IdentityDiscretizer <: BinningDiscretizer{Int}
+    bins :: Vector{Int}
+end
+Binnings.BinningDiscretizer(b::IdentityBinning, X_trn, y_trn) =
+    IdentityDiscretizer(sort(unique(y_trn)))
+Binnings.encode(d::IdentityDiscretizer, X_obs) = X_obs[:]
+Binnings.bins(d::IdentityDiscretizer) = d.bins
+function run(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "`run(data, config)` is deprecated; ",
+        "please call `deconvolve(RUN(config), data)` instead"
+    ]), :run)
+    run = RUN(IdentityBinning(); n_bins_y=length(bins_y), kwargs...)
+    return deconvolve(
+        run,
+        reshape(x_obs, (length(x_obs), 1)), # treat as a matrix
+        reshape(x_trn, (length(x_trn), 1)),
+        y_trn
+    )
+end
