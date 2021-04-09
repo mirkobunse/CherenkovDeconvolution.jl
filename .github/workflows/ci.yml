@@ -11,7 +11,7 @@ jobs:
 
   # unit tests with coverage
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -76,9 +76,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
+      # install python before Julia
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
+      - uses: actions/cache@v2
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-${{ matrix.arch }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-${{ matrix.arch }}-test-
+            ${{ runner.os }}-${{ matrix.arch }}-
+            ${{ runner.os }}-
+
+      # prepare the environment for building PyCall
+      - uses: julia-actions/julia-buildpkg@latest
+        env:
+          PYTHON: ''
+
+      # make sure that sklearn is installed
+      - run: |
+          julia --project=@. -e '
+            using ScikitLearn
+            @sk_import tree : DecisionTreeClassifier'
+
+      # we are finally ready to build the documentation
       - run: |
           julia --project=docs -e '
             using Pkg
