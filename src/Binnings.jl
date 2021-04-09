@@ -21,7 +21,7 @@
 # 
 module Binnings
 
-using DataFrames, ScikitLearn, Discretizers
+using ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall, pyimport
 
 export Binning, BinningDiscretizer, bins, encode, KMeansBinning, TreeBinning

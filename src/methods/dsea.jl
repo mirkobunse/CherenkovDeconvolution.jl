@@ -73,19 +73,6 @@ struct DSEA <: DeconvolutionMethod
     ) = new(c, epsilon, f_0, fixweighting, inspect, K, n_bins_y, return_contributions, smoothing, stepsize)
 end
 
-dsea( data          :: AbstractDataFrame,
-      train         :: AbstractDataFrame,
-      y             :: Symbol,
-      train_predict :: Function,
-      bins_y        :: AbstractVector{T} = 1:maximum(train[y]);
-      features      :: AbstractVector{Symbol} = setdiff(names(train), [y]),
-      kwargs... ) where T<:Int =
-  dsea(DeconvUtil.df2X(data, features),
-       DeconvUtil.df2Xy(train, y, features)...,
-       train_predict,
-       bins_y;
-       kwargs...) # DataFrame form
-
 dsea( X_data        :: AbstractArray,
       X_train       :: AbstractArray,
       y_train       :: AbstractVector{T},

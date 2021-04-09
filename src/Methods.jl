@@ -26,7 +26,7 @@ This module contains a collection of deconvolution methods.
 """
 module Methods
 
-using DataFrames, LinearAlgebra, Optim
+using LinearAlgebra, Optim
 using ..DeconvUtil, ..Binnings, ..Stepsizes
 
 export

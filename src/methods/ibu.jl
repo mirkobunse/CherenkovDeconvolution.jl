@@ -77,15 +77,6 @@ expects_normalized_R(ibu::IBU) = !ibu.fit_ratios
 expects_normalized_g(ibu::IBU) = true # stick to the default
 expected_n_bins_y(ibu::IBU) = ibu.n_bins_y
 
-ibu( data   :: AbstractDataFrame,
-     train  :: AbstractDataFrame,
-     x      :: Symbol,
-     y      :: Symbol,
-     bins_y :: AbstractVector = 1:maximum(train[y]);
-     kwargs... ) =
-  ibu(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
-
-# Vector form
 ibu( x_data  :: AbstractVector{T},
      x_train :: AbstractVector{T},
      y_train :: AbstractVector{T},

@@ -66,15 +66,6 @@ expects_normalized_R(svd::SVD) = !svd.fit_ratios
 expects_normalized_g(svd::SVD) = false
 expected_n_bins_y(svd::SVD) = svd.n_bins_y
 
-svd( data   :: AbstractDataFrame,
-     train  :: AbstractDataFrame,
-     x      :: Symbol,
-     y      :: Symbol,
-     bins_y :: AbstractVector = 1:maximum(train[y]);
-     kwargs... ) =
-  svd(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
-
-# Vector form
 function svd( x_data  :: AbstractVector{T},
               x_train :: AbstractVector{T},
               y_train :: AbstractVector{T},

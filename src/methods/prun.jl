@@ -83,15 +83,6 @@ expects_normalized_R(prun::PRUN) = !prun.fit_ratios
 expects_normalized_g(prun::PRUN) = false
 expected_n_bins_y(prun::PRUN) = prun.n_bins_y
 
-p_run( data   :: AbstractDataFrame,
-     train  :: AbstractDataFrame,
-     x      :: Symbol,
-     y      :: Symbol,
-     m_y :: AbstractVector = 1:maximum(train[y]);
-     kwargs... ) =
-  p_run(data[x], train[x], train[y], m_y; kwargs...) # DataFrame form
-
-# Vector form
 p_run( x_data  :: AbstractVector{T},
        x_train :: AbstractVector{T},
        y_train :: AbstractVector{T},

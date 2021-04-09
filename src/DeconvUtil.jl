@@ -21,7 +21,7 @@
 # 
 module DeconvUtil
 
-using DataFrames, Discretizers, LinearAlgebra, Polynomials, ScikitLearn, StatsBase
+using Discretizers, LinearAlgebra, Polynomials, ScikitLearn, StatsBase
 
 export fit_pdf, fit_R, edges, normalizetransfer
 export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
@@ -346,23 +346,6 @@ function chi2s(a::AbstractVector{T}, b::AbstractVector{T}, normalize::Bool=true)
     b = b[selection]
     return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
 end
-
-
-"""
-    df2Xy(df, y, features = setdiff(names(df), [y])))
-
-Convert the DataFrame `df` to a tuple of the feature matrix `X` and the target column `y`.
-"""
-df2Xy(df::AbstractDataFrame, y::Symbol, features::Vector{Symbol}=setdiff(names(df), [y])) =
-    df2X(df, features), convert(Array, df[y])
-
-"""
-    df2X(df, features = names(df))
-
-Convert the DataFrame `df` to a feature matrix `X`.
-"""
-df2X(df::AbstractDataFrame, features::AbstractVector{Symbol}=names(df)) =
-    convert(Matrix, df[:, features])
 
 
 """

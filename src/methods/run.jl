@@ -80,15 +80,6 @@ expects_normalized_R(run::RUN) = !run.fit_ratios
 expects_normalized_g(run::RUN) = false
 expected_n_bins_y(run::RUN) = run.n_bins_y
 
-run( data   :: AbstractDataFrame,
-     train  :: AbstractDataFrame,
-     x      :: Symbol,
-     y      :: Symbol,
-     bins_y :: AbstractVector = 1:maximum(train[y]);
-     kwargs... ) =
-  run(data[x], train[x], train[y], bins_y; kwargs...) # DataFrame form
-
-# Vector form
 run( x_data  :: AbstractVector{T},
      x_train :: AbstractVector{T},
      y_train :: AbstractVector{T},
