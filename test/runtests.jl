@@ -19,9 +19,9 @@ macro scoped_nbinclude(path::AbstractString)
 end
 
 # check that no error occurs in example notebooks
-@scoped_nbinclude "../doc/01-getting-started.ipynb"
-@scoped_nbinclude "../doc/02-inspection.ipynb"
-@scoped_nbinclude "../doc/03-adaptive-stepsize.ipynb"
+@scoped_nbinclude "../docs/01-getting-started.ipynb"
+@scoped_nbinclude "../docs/02-inspection.ipynb"
+@scoped_nbinclude "../docs/03-adaptive-stepsize.ipynb"
 
 # check that deprecation redirections work
 @scoped_nbinclude "deprecated/01-getting-started.ipynb"
