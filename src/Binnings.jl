@@ -169,4 +169,33 @@ bins(d::KMeansDiscretizer) = collect(1:d.J)
 Return the bin indices of `d`.
 """ bins # update the documentation
 
+# deprecated syntax
+export TreeDiscretizer, KMeansDiscretizer
+function TreeDiscretizer(
+        X_trn :: AbstractMatrix{TN},
+        y_trn :: AbstractVector{TI},
+        J     :: TI,
+        criterion :: String="gini";
+        seed  :: Integer=rand(UInt32)
+        ) where {TN<:Number, TI<:Int}
+    Base.depwarn(join([
+        "`TreeDiscretizer(data, config)` is deprecated; ",
+        "call `BinningDiscretizer(TreeBinning(config), data)` instead"
+    ]), :TreeDiscretizer)
+    binning = TreeBinning(J; criterion=criterion, seed=seed)
+    return BinningDiscretizer(binning, X_trn, y_trn)
+end
+function KMeansDiscretizer(
+        X_trn :: AbstractMatrix{TN},
+        J     :: TI,
+        seed  :: Integer=rand(UInt32)
+        ) where {TN<:Number, TI<:Int}
+    Base.depwarn(join([
+        "`KMeansDiscretizer(data, config)` is deprecated; ",
+        "call `BinningDiscretizer(KMeansBinning(config), data)` instead"
+    ]), :KMeansDiscretizer)
+    binning = KMeansBinning(J; seed=seed)
+    return BinningDiscretizer(binning, X_trn)
+end
+
 end # module
