@@ -46,7 +46,7 @@ The *DSEA/DSEA+* deconvolution method, embedding the given `classifier`.
   is a function `(f_k::Vector, k::Int, chi2s::Float64, alpha_k::Float64) -> Any` optionally
   called in every iteration.
 - `return_contributions = false`
-  sets, whether or not the contributions of individual examples in `X_data` are returned as
+  sets, whether or not the contributions of individual examples in `X_obs` are returned as
   a tuple together with the deconvolution result.
 """
 struct DSEA <: DeconvolutionMethod
@@ -72,14 +72,6 @@ struct DSEA <: DeconvolutionMethod
         stepsize     :: Stepsize = DEFAULT_STEPSIZE
     ) = new(c, epsilon, f_0, fixweighting, inspect, K, n_bins_y, return_contributions, smoothing, stepsize)
 end
-
-dsea( X_data        :: AbstractArray,
-      X_train       :: AbstractArray,
-      y_train       :: AbstractVector{T},
-      train_predict :: Function,
-      bins_y        :: AbstractVector{T} = 1:maximum(y_train);
-      kwargs... ) where T<:Int =
-  error("No deprecation redirection implemented")
 
 # ScikitLearn.jl goes mad when another sub-type of AbstractArray is used.
 deconvolve(
@@ -195,4 +187,23 @@ function _dsea_step(k::Int64, f::Vector{Float64}, f_prev::Vector{Float64},
     p_k     = f - f_prev # search direction
     alpha_k = value(alpha, k, p_k, f_prev, a_prev) # function or float
     return  f_prev + alpha_k * p_k,  alpha_k # return a tuple
+end
+
+# deprecated syntax
+using PyCall
+export dsea
+function dsea(
+        X_obs :: AbstractArray,
+        X_trn :: AbstractArray,
+        y_trn :: AbstractVector{T},
+        train_predict :: Function,
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn);
+        kwargs...
+        ) where T<:Int
+    Base.depwarn(join([
+        "Deprecated `dsea(data, config)` ignores train_predict and uses GaussianNB; ",
+        "please call `deconvolve(DSEA(config), data)` instead"
+    ]), :dsea)
+    dsea = DSEA(pyimport("sklearn.naive_bayes").GaussianNB(); n_bins_y=length(bins_y), kwargs...) # classifier needed
+    return deconvolve(dsea, X_obs, X_trn, y_trn)
 end
