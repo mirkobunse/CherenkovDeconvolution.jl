@@ -166,4 +166,63 @@ function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
     return a_min, a_max
 end
 
+# deprecated syntax
+struct BufferBinning <: Binning
+    buffer :: Vector{Vector{Int}}
+    bins :: Vector{Int}
+end
+struct BufferDiscretizer <: BinningDiscretizer{Int}
+    buffer :: Vector{Vector{Int}}
+    bins :: Vector{Int}
+end
+Binnings.BinningDiscretizer(b::BufferBinning, X_trn, y_trn) =
+    BufferDiscretizer(b.buffer, b.bins) # copy
+Binnings.encode(d::BufferDiscretizer, X_obs) =
+    if size(X_obs, 1) == length(d.buffer[1])
+        return d.buffer[1]
+    elseif size(X_obs, 1) == length(d.buffer[2])
+        return d.buffer[2]
+    else
+        error("Size does not match")
+    end
+Binnings.bins(d::BufferDiscretizer) = d.bins
+function RunStepsize(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        tau    :: Number = 0.0;
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn),
+        bins_x :: AbstractVector{T} = 1:maximum(vcat(x_obs, x_trn)),
+        warn   :: Bool = false,
+        decay  :: Bool = false ) where T<:Int
+    Base.depwarn(join([
+        "`RunStepsize(data, config)` is deprecated; ",
+        "please call `initialize!(RunStepsize(config), data)` instead"
+    ]), :RunStepsize)
+    if length(x_obs) == length(x_trn)
+        @warn "oh-oh"
+    end
+    s = RunStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), BufferBinning([x_obs, x_trn], bins_x), decay, tau, warn)
+    return initialize!(s, reshape(x_obs, (length(x_obs), 1)), reshape(x_trn, (length(x_trn), 1)), y_trn)
+end
+function LsqStepsize(
+        x_obs  :: AbstractVector{T},
+        x_trn  :: AbstractVector{T},
+        y_trn  :: AbstractVector{T},
+        tau    :: Number = 0.0;
+        bins_y :: AbstractVector{T} = 1:maximum(y_trn),
+        bins_x :: AbstractVector{T} = 1:maximum(vcat(x_obs, x_trn)),
+        warn   :: Bool = false,
+        decay  :: Bool = false ) where T<:Int
+    Base.depwarn(join([
+        "`LsqStepsize(data, config)` is deprecated; ",
+        "please call `initialize!(LsqStepsize(config), data)` instead"
+    ]), :LsqStepsize)
+    if length(x_obs) == length(x_trn)
+        @warn "oh-oh"
+    end
+    s = LsqStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), BufferBinning([x_obs, x_trn], bins_x), decay, tau, warn)
+    return initialize!(s, reshape(x_obs, (length(x_obs), 1)), reshape(x_trn, (length(x_trn), 1)), y_trn)
+end
+
 end # module

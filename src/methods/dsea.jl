@@ -204,6 +204,10 @@ function dsea(
         "Deprecated `dsea(data, config)` ignores train_predict and uses GaussianNB; ",
         "please call `deconvolve(DSEA(config), data)` instead"
     ]), :dsea)
-    dsea = DSEA(pyimport("sklearn.naive_bayes").GaussianNB(); n_bins_y=length(bins_y), kwargs...) # classifier needed
+    kwargs_dict = Dict(kwargs...)
+    if haskey(kwargs_dict, :alpha)
+        kwargs_dict[:stepsize] = pop!(kwargs_dict, :alpha) # rename the key
+    end
+    dsea = DSEA(pyimport("sklearn.naive_bayes").GaussianNB(); n_bins_y=length(bins_y), kwargs_dict...)
     return deconvolve(dsea, X_obs, X_trn, y_trn)
 end
