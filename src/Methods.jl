@@ -117,7 +117,7 @@ function deconvolve(
 
     # also check the optional prior
     f_0 = prior(m)
-    if !isnothing(f_0)
+    if f_0 != nothing
         check_prior(f_0, n_bins_y)
         f_0 = DeconvUtil.normalizepdf(encode_prior(label_sanitizer, f_0))
     end

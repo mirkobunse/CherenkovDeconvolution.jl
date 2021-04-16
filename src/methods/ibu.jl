@@ -89,7 +89,7 @@ function deconvolve(
 
     # check the arguments and set the optional prior
     check_discrete_arguments(R, g)
-    if isnothing(f_0)
+    if f_0 == nothing
         if ibu.fit_ratios # default prior for ratios
             f_0 = ones(length(f_trn))
         else # default uniform prior
