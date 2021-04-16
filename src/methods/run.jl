@@ -85,7 +85,8 @@ function deconvolve(
         R::Matrix{T_R},
         g::Vector{T_g},
         label_sanitizer::LabelSanitizer,
-        f_trn::Vector{T_f}
+        f_trn::Vector{T_f},
+        f_0::Union{Vector{T_f},Nothing}
         ) where {T_R<:Number,T_g<:Number,T_f<:Number}
 
     # limit the unfolding to non-zero bins

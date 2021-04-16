@@ -52,7 +52,7 @@ the observable features.
 struct IBU <: DiscreteMethod
     binning :: Binning
     epsilon :: Float64
-    f_0 :: Vector{Float64}
+    f_0 :: Union{Vector{Float64},Nothing}
     fit_ratios :: Bool
     inspect :: Function
     K :: Int
@@ -61,7 +61,7 @@ struct IBU <: DiscreteMethod
     stepsize :: Stepsize
     IBU(binning;
         epsilon    :: Float64  = 0.0,
-        f_0        :: Vector{Float64} = Float64[],
+        f_0        :: Union{Vector{Float64},Nothing} = nothing,
         fit_ratios :: Bool     = false,
         inspect    :: Function = (args...) -> nothing,
         K          :: Int64    = 3,
@@ -73,6 +73,7 @@ end
 
 binning(ibu::IBU) = ibu.binning
 stepsize(ibu::IBU) = ibu.stepsize
+prior(ibu::IBU) = ibu.f_0
 expects_normalized_R(ibu::IBU) = !ibu.fit_ratios
 expects_normalized_g(ibu::IBU) = true # stick to the default
 expected_n_bins_y(ibu::IBU) = ibu.n_bins_y
@@ -82,24 +83,21 @@ function deconvolve(
         R::Matrix{T_R},
         g::Vector{T_g},
         label_sanitizer::LabelSanitizer,
-        f_trn::Vector{T_f}
+        f_trn::Vector{T_f},
+        f_0::Union{Vector{T_f},Nothing}
         ) where {T_R<:Number,T_g<:Number,T_f<:Number}
 
-    # check the arguments and encode the prior
+    # check the arguments and set the optional prior
     check_discrete_arguments(R, g)
-    f_0 = ibu.f_0
-    if length(f_0) > 0 # only need to check if a prior is given
-        check_prior(f_0)
-        f_0 = DeconvUtil.normalizepdf(f_0)
-        if ibu.fit_ratios
-            f_0 = f_0 ./ decode_estimate(label_sanitizer, f_trn) # convert to a ratio prior
+    if isnothing(f_0)
+        if ibu.fit_ratios # default prior for ratios
+            f_0 = ones(length(f_trn))
+        else # default uniform prior
+            f_0 = ones(length(f_trn)) ./ length(f_trn)
         end
-    elseif ibu.fit_ratios # default prior for ratios
-        f_0 = ones(length(f_trn))
-    else # set a default uniform prior if none is given
-        f_0 = ones(length(f_trn)) ./ length(f_trn)
+    elseif ibu.fit_ratios
+        f_0 = f_0 ./ f_trn # convert to a ratio prior
     end
-    f_0 = encode_prior(label_sanitizer, f_0)
 
     # the initial estimate
     f = f_0

@@ -115,6 +115,13 @@ function deconvolve(
     y_trn = encode_labels(label_sanitizer, y_trn) # encode labels for safety
     initialize!(stepsize(m), X_obs, X_trn, y_trn) # initialize stepsizes
 
+    # also check the optional prior
+    f_0 = prior(m)
+    if !isnothing(f_0)
+        check_prior(f_0, n_bins_y)
+        f_0 = DeconvUtil.normalizepdf(encode_prior(label_sanitizer, f_0))
+    end
+
     # discretize the problem statement into a system of linear equations
     d = BinningDiscretizer(binning(m), X_trn, y_trn) # fit the binning strategy with labeled data
     x_obs = encode(d, X_obs) # apply it to the feature vectors
@@ -124,7 +131,7 @@ function deconvolve(
     f_trn = DeconvUtil.fit_pdf(y_trn)
 
     # call the actual solver (IBU, RUN, etc)
-    return deconvolve(m, R, g, label_sanitizer, f_trn)
+    return deconvolve(m, R, g, label_sanitizer, f_trn, f_0)
 end
 
 # required API for discrete methods
@@ -133,11 +140,13 @@ deconvolve(
         R::Matrix{T_R},
         g::Vector{T_g},
         label_sanitizer::LabelSanitizer,
-        f_trn::Vector{T_f}
+        f_trn::Vector{T_f},
+        f_0::Union{Vector{T_f},Nothing}
         ) where {T_R<:Number,T_g<:Number,T_f<:Number} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 binning(m::DiscreteMethod) = throw(ArgumentError("Implementation missing for $(typeof(m))"))
 stepsize(m::DiscreteMethod) = DEFAULT_STEPSIZE # default
+prior(m::DiscreteMethod) = nothing
 expects_normalized_R(m::DiscreteMethod) = false
 expects_normalized_g(m::DiscreteMethod) = true
 expected_n_bins_y(m::DiscreteMethod) = 0

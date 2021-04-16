@@ -57,7 +57,7 @@ struct PRUN <: DiscreteMethod
     acceptance_correction :: Union{Tuple{Function, Function}, Nothing}
     ac_regularisation :: Bool
     epsilon :: Float64
-    f_0 :: Vector{Float64}
+    f_0 :: Union{Vector{Float64},Nothing}
     fit_ratios :: Bool
     inspect :: Function
     K :: Int
@@ -68,7 +68,7 @@ struct PRUN <: DiscreteMethod
         acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
         ac_regularisation :: Bool     = true,
         epsilon           :: Float64  = 1e-6,
-        f_0               :: Vector{Float64} = Float64[],
+        f_0               :: Union{Vector{Float64},Nothing} = nothing,
         fit_ratios        :: Bool     = false,
         inspect           :: Function = (args...) -> nothing,
         K                 :: Int      = 100,
@@ -79,6 +79,7 @@ struct PRUN <: DiscreteMethod
 end
 
 binning(prun::PRUN) = prun.binning
+prior(prun::PRUN) = prun.f_0
 expects_normalized_R(prun::PRUN) = !prun.fit_ratios
 expects_normalized_g(prun::PRUN) = false
 expected_n_bins_y(prun::PRUN) = prun.n_bins_y
@@ -88,7 +89,8 @@ function deconvolve(
         R::Matrix{T_R},
         g::Vector{T_g},
         label_sanitizer::LabelSanitizer,
-        f_trn::Vector{T_f}
+        f_trn::Vector{T_f},
+        f_0::Union{Vector{T_f},Nothing}
         ) where {T_R<:Number,T_g<:Number,T_f<:Number}
 
     # limit the unfolding to non-zero bins
@@ -106,20 +108,16 @@ function deconvolve(
         @warn "PRUN is performed on more target than observable bins - results may be unsatisfactory"
     end
 
-    # encode the optional prior
-    f_0 = prun.f_0
-    if length(f_0) > 0 # only need to check if a prior is given
-        check_prior(f_0)
-        f_0 = DeconvUtil.normalizepdf(f_0)
-        if prun.fit_ratios
-            f_0 = f_0 ./ decode_estimate(label_sanitizer, f_trn) # convert to a ratio prior
+    # set the optional prior
+    if isnothing(f_0)
+        if prun.fit_ratios # default prior for ratios
+            f_0 = ones(length(f_trn))
+        else # default uniform prior
+            f_0 = ones(length(f_trn)) ./ length(f_trn)
         end
-    elseif prun.fit_ratios # default prior for ratios
-        f_0 = ones(length(f_trn))
-    else # set a default uniform prior if none is given
-        f_0 = ones(length(f_trn)) ./ length(f_trn)
+    elseif prun.fit_ratios
+        f_0 = f_0 ./ f_trn # convert to a ratio prior
     end
-    f_0 = encode_prior(label_sanitizer, f_0)
 
     # set up acceptance correction
     ac_regularisation = prun.ac_regularisation
