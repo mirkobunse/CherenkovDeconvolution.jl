@@ -23,11 +23,23 @@ module DeconvUtil
 
 using Discretizers, LinearAlgebra, Polynomials, ScikitLearn, StatsBase
 
-export fit_pdf, fit_R, edges, normalizetransfer
-export normalizepdf, normalizepdf!, polynomial_smoothing, chi2s
-export expansion_discretizer, reduce, inspect_expansion, inspect_reduction
-export train_and_predict_proba
-
+export
+    chi2s,
+    cov_g,
+    cov_multinomial,
+    cov_Poisson,
+    edges,
+    expansion_discretizer,
+    fit_pdf,
+    fit_R,
+    inspect_expansion,
+    inspect_reduction,
+    normalizepdf,
+    normalizepdf!,
+    normalizetransfer,
+    polynomial_smoothing,
+    reduce,
+    train_and_predict_proba
 
 """    
     fit_pdf(x[, bins]; normalize=true, laplace=false)
@@ -48,7 +60,6 @@ function fit_pdf(x::AbstractVector{T}, bins::AbstractVector{T}=unique(x);
     end
     return normalize ? normalizepdf(h) : h
 end
-
 
 """
     fit_R(y, x; bins_y, bins_x, normalize=true)
@@ -73,7 +84,6 @@ function fit_R(y::AbstractVector{T}, x::AbstractVector{T};
     return normalize ? normalizetransfer(R) : R
 end
 
-
 """
     edges(x)
 
@@ -83,7 +93,6 @@ function edges(x::AbstractVector{T}) where T<:Int
     xmin, xmax = extrema(x)
     return xmin:(xmax+1)
 end
-
 
 """
     normalizetransfer(R[; warn=true])
@@ -97,7 +106,6 @@ function normalizetransfer(R::AbstractMatrix{T}; warn::Bool=true) where T<:Numbe
     end
     return R_norm
 end
-
 
 _DOC_NORMALIZEPDF = """
     normalizepdf(array...; warn=true)
@@ -175,7 +183,6 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     end
 end
 
-
 _DOC_COV = """
     cov_Poisson(g, N)
     cov_multinomial(g, N)
@@ -227,7 +234,6 @@ cov_g(g::Vector{T}, N::Integer = sum(Int64, g), assumption = :Poisson) where T<:
         throw(ArgumentError("assumption=$assumption must be either :Poisson or :multinomial"))
     end
 
-
 """
     polynomial_smoothing([o = 2, warn = true])
 
@@ -264,7 +270,6 @@ function _repair_smoothing(f::Vector{Float64}, warn::Bool)
     end
     return normalizepdf(f, warn=warn)
 end
-
 
 """
     expansion_discretizer(ld, factor)
@@ -310,7 +315,6 @@ function reduce(f::Vector{T}, factor::Int, keepdim::Bool=false;
     
 end
 
-
 """
     inspect_expansion(inspect, factor)
 
@@ -321,7 +325,6 @@ monitor the progress of a deconvolution method operating on an expanded problem.
 inspect_expansion(inspect::Function, factor::Int) =
     (f, args...) -> inspect(reduce(f, factor), args...)
 
-
 """
     inspect_reduction(inspect, factor)
 
@@ -330,7 +333,6 @@ Create a function object for the inspection of deconvolution methods, which wrap
 """
 inspect_reduction(inspect::Function, factor::Int) =
     (f, args...) -> inspect(reduce(f, factor, true), args...)
-
 
 """
     chi2s(a, b, normalize = true)
@@ -346,7 +348,6 @@ function chi2s(a::AbstractVector{T}, b::AbstractVector{T}, normalize::Bool=true)
     b = b[selection]
     return 2 * sum((a .- b).^2 ./ (a .+ b)) # Distances.chisq_dist(a, b)
 end
-
 
 """
     train_and_predict_proba(classifier, :sample_weight)
@@ -365,6 +366,5 @@ function train_and_predict_proba(classifier, sample_weight::Union{Symbol,Nothing
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities
     end
 end
-
 
 end # module
