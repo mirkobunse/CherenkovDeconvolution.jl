@@ -109,7 +109,7 @@ function deconvolve(
     # check and encode the prior
     f_0 = dsea.f_0
     if length(f_0) > 0 # only need to check if a prior is given
-        check_prior(f_0)
+        check_prior(f_0, n_bins_y)
         f_0 = DeconvUtil.normalizepdf(f_0)
     else # set a default uniform prior if none is given
         f_0 = ones(n_bins_y) ./ n_bins_y
