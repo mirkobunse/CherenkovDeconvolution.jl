@@ -105,6 +105,11 @@ function deconvolve(
     tau = (effective_rank > 0) ? s[effective_rank]^2 : 0.0 # deconvolution step 2
     z_tau = d .* s ./ ( s.^2 .+ tau )
     f_est = inv_C * V * z_tau # step 3 (denoted as w_tau in the paper)
+
+    if svd.fit_ratios
+        f_est = f_est .* f_trn
+    end
+    
     return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_est))
 end
 
