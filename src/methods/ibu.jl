@@ -42,12 +42,12 @@ the observable features.
   below this threshold, convergence is assumed and the algorithm stops.
 - `stepsize = DEFAULT_STEPSIZE`
   is the step size taken in every iteration.
-- `fit_ratios = false`
-  determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
-  `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, chi2s::Float64, alpha_k::Float64) -> Any` optionally
   called in every iteration.
+- `fit_ratios = false` (**discouraged**)
+  determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
+  `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 """
 struct IBU <: DiscreteMethod
     binning :: Binning
@@ -59,16 +59,20 @@ struct IBU <: DiscreteMethod
     n_bins_y :: Int
     smoothing :: Function # TODO smoothing types
     stepsize :: Stepsize
-    IBU(binning;
-        epsilon    :: Float64  = 0.0,
-        f_0        :: Union{Vector{Float64},Nothing} = nothing,
-        fit_ratios :: Bool     = false,
-        inspect    :: Function = (args...) -> nothing,
-        K          :: Int64    = 3,
-        n_bins_y   :: Int      = -1,
-        smoothing  :: Function = Base.identity,
-        stepsize   :: Stepsize = DEFAULT_STEPSIZE
-    ) = new(binning, epsilon, f_0, fit_ratios, inspect, K, n_bins_y, smoothing, stepsize)
+    function IBU(binning :: Binning;
+            epsilon    :: Float64  = 0.0,
+            f_0        :: Union{Vector{Float64},Nothing} = nothing,
+            fit_ratios :: Bool     = false,
+            inspect    :: Function = (args...) -> nothing,
+            K          :: Int64    = 3,
+            n_bins_y   :: Int      = -1,
+            smoothing  :: Function = Base.identity,
+            stepsize   :: Stepsize = DEFAULT_STEPSIZE)
+        if fit_ratios
+            @warn "fit_ratios = true is an experimental feature that is discouraged for IBU"
+        end
+        return new(binning, epsilon, f_0, fit_ratios, inspect, K, n_bins_y, smoothing, stepsize)
+    end
 end
 
 binning(ibu::IBU) = ibu.binning

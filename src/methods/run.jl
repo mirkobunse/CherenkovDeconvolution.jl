@@ -47,7 +47,7 @@ The *Regularized Unfolding* method, using a `binning` to discretize the observab
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64, tau::Float64) -> Any` optionally
   called in every iteration.
-- `fit_ratios = false`
+- `fit_ratios = false` (**discouraged**)
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 """
@@ -62,17 +62,21 @@ struct RUN <: DiscreteMethod
     log_constant :: Float64
     n_bins_y :: Int
     n_df :: Int
-    RUN(binning;
-        acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
-        ac_regularisation :: Bool     = true,
-        epsilon           :: Float64  = 1e-6,
-        fit_ratios        :: Bool     = false,
-        inspect           :: Function = (args...) -> nothing,
-        K                 :: Int64    = 100,
-        log_constant      :: Float64  = 1/18394,
-        n_bins_y          :: Int      = -1,
-        n_df              :: Int      = typemax(Int)
-    ) = new(binning, acceptance_correction, ac_regularisation, epsilon, fit_ratios, inspect, K, log_constant, n_bins_y, n_df)
+    function RUN(binning :: Binning;
+            acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
+            ac_regularisation :: Bool     = true,
+            epsilon           :: Float64  = 1e-6,
+            fit_ratios        :: Bool     = false,
+            inspect           :: Function = (args...) -> nothing,
+            K                 :: Int64    = 100,
+            log_constant      :: Float64  = 1/18394,
+            n_bins_y          :: Int      = -1,
+            n_df              :: Int      = typemax(Int))
+        if fit_ratios
+            @warn "fit_ratios = true is an experimental feature that is discouraged for RUN"
+        end
+        return new(binning, acceptance_correction, ac_regularisation, epsilon, fit_ratios, inspect, K, log_constant, n_bins_y, n_df)
+    end
 end
 
 binning(run::RUN) = run.binning
