@@ -39,7 +39,7 @@ The *SVD-based* deconvolution method, using a `binning` to discretize the observ
 - `epsilon_C = 1e-3`
   is a small constant to be added to each diagonal entry of the regularization matrix `C`.
   If no such constant would be added, inversion of `C` would not be possible.
-- `fit_ratios = false`
+- `fit_ratios = true`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
 """
@@ -55,7 +55,7 @@ struct SVD <: DiscreteMethod
         B          :: Matrix{Float64} = Matrix{Float64}(undef, 0, 0),
         effective_rank :: Int = -1,
         epsilon_C  :: Float64 = 1e-3,
-        fit_ratios :: Bool    = false,
+        fit_ratios :: Bool    = true,
         n_bins_y   :: Int     = -1,
         N          :: Int     = -1
     ) = new(binning, B, effective_rank, epsilon_C, fit_ratios, n_bins_y, N)
