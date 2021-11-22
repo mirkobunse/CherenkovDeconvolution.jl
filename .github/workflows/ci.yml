@@ -1,9 +1,9 @@
 name: CI
 
-# Run on master, tags, or any pull request
+# run on the main branch, on tags, or on any pull request
 on:
   push:
-    branches: [master]
+    branches: [main]
     tags: ["*"]
   pull_request:
 
