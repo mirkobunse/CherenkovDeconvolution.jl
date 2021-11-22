@@ -96,7 +96,7 @@ function deconvolve(
     # limit the unfolding to non-zero bins
     if any(g .<= 0)
         nonzero = g .> 0
-        @warn "Limiting RUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
+        @debug "Limiting RUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
         g = g[nonzero]
         R = R[nonzero, :]
     end
@@ -123,7 +123,7 @@ function deconvolve(
             a = inv_ac(ones(m))
         end
     elseif ac_regularisation
-        @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+        @debug "Performing acceptance correction regularisation requires a given acceptance_correction object"
         ac_regularisation = false
     end
 
@@ -133,14 +133,14 @@ function deconvolve(
     # the first iteration is a least squares fit
     H_lsq = _lsq_H(R, g)(f)
     if !all(isfinite.(H_lsq))
-        @warn "LSq hessian contains Infs or NaNs - replacing these by zero"
+        @debug "LSq hessian contains Infs or NaNs - replacing these by zero"
         H_lsq[.!(isfinite.(H_lsq))] .= 0.0
     end
     f += try
         - inv(H_lsq) * _lsq_g(R, g)(f)
     catch err
         if isa(err, SingularException) # pinv instead of inv only required if more y than x bins
-            @warn "LSq hessian is singular - using pseudo inverse in RUN"
+            @debug "LSq hessian is singular - using pseudo inverse in RUN"
             - pinv(H_lsq) * _lsq_g(R, g)(f)
         else
             rethrow(err)
@@ -160,7 +160,7 @@ function deconvolve(
         g_f = g_l(f)
         H_f = H_l(f)
         if !all(isfinite.(H_f))
-            @warn "MaxL hessian contains Infs or NaNs - replacing these by zero"
+            @debug "MaxL hessian contains Infs or NaNs - replacing these by zero"
             H_f[.!(isfinite.(H_f))] .= 0.0
         end
 
@@ -195,14 +195,14 @@ function deconvolve(
                 try # try again with pseudo inverse
                     step = - pinv(H_f) * g_f # update step
                     if isa(err, SingularException)
-                        @warn "MaxL Hessian is singular - using pseudo inverse in RUN"
+                        @debug "MaxL Hessian is singular - using pseudo inverse in RUN"
                     else
-                        @warn "LAPACKException on inversion of MaxL Hessian - using pseudo inverse in RUN"
+                        @debug "LAPACKException on inversion of MaxL Hessian - using pseudo inverse in RUN"
                     end
                     step # return update step after warning is emitted and only if computation is successful
                 catch err2
                     if isa(err, LAPACKException) # same exception occurs with pinv?
-                        @warn "LAPACKException on pseudo inversion of MaxL Hessian - not performing an update in RUN"
+                        @debug "LAPACKException on pseudo inversion of MaxL Hessian - not performing an update in RUN"
                         zero(f) # return zero step to not update f
                     else
                         rethrow(err2)
@@ -352,7 +352,7 @@ _C_H(tau::Float64, C::Matrix{Float64};
             f̄_a_log = map(x -> x<=0.0 ? 0.0 : log(x), a .* f̄)
             H[diagind(H)] .= diag( - tau .* C * (repeat(f̄_a_log, 1, length(f̄)) - diagm(ones(length(f̄)))) ./ f̄ .^2)
             if !all(isfinite.(H))
-                @warn "regularized hessian contains Infs or NaNs - replacing these by zero"
+                @debug "regularized hessian contains Infs or NaNs - replacing these by zero"
                 H[.!(isfinite.(H))] .= 0.0
             end
             return H

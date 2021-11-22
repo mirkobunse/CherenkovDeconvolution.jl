@@ -96,7 +96,7 @@ function deconvolve(
     catch exception
         if isa(exception, LoneClassException)
             f_est = recover_estimate(exception, n_bins_y)
-            @warn "Only one label in the training set, returning a trivial estimate" f_est
+            @debug "Only one label in the training set, returning a trivial estimate" f_est
             return f_est
         else
             rethrow()
@@ -145,12 +145,12 @@ function deconvolve(
         
         # monitor progress
         chi2s = DeconvUtil.chi2s(f_prev, f, false) # Chi Square distance between iterations
-        @info "DSEA iteration $k/$(dsea.K) uses alpha = $alpha_k (chi2s = $chi2s)"
+        @debug "DSEA iteration $k/$(dsea.K) uses alpha = $alpha_k (chi2s = $chi2s)"
         dsea.inspect(decode_estimate(label_sanitizer, f), k, chi2s, alpha_k)
         
         # stop when convergence is assumed
         if chi2s < dsea.epsilon # also holds when alpha is zero
-            @info "DSEA convergence assumed from chi2s = $chi2s < epsilon = $(dsea.epsilon)"
+            @debug "DSEA convergence assumed from chi2s = $chi2s < epsilon = $(dsea.epsilon)"
             break
         end
         

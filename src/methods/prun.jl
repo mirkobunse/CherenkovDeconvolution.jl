@@ -100,7 +100,7 @@ function deconvolve(
     # limit the unfolding to non-zero bins
     if any(g .<= 0)
         nonzero = g .> 0
-        @warn "Limiting PRUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
+        @debug "Limiting PRUN to $(sum(nonzero)) of $(length(g)) observeable non-zero bins"
         g = g[nonzero]
         R = R[nonzero, :]
     end
@@ -132,7 +132,7 @@ function deconvolve(
             a = inv_ac(ones(m))
         end
     elseif ac_regularisation
-        @warn "Performing acceptance correction regularisation requires a given acceptance_correction object"
+        @debug "Performing acceptance correction regularisation requires a given acceptance_correction object"
         ac_regularisation = false
     end
 
