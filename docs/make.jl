@@ -15,4 +15,5 @@ makedocs(;
 
 deploydocs(
     repo = "github.com/mirkobunse/CherenkovDeconvolution.jl.git",
+    devbranch = "main"
 )
