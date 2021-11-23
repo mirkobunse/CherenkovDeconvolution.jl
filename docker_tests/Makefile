@@ -1,13 +1,15 @@
 TAG=cherenkovdeconvolution_test
 
-image: .IMAGE
-.IMAGE: Dockerfile
-	- docker rmi -f $(TAG)
-	docker build --tag $(TAG) .
-	echo "$(TAG)" > $@
+tests: .IMAGE
+	docker run --rm $(TAG)
+.IMAGE: .DEPS tests.py Dockerfile
+	docker build --tag $(TAG) . && touch $@
+.DEPS: ../CherenkovDeconvolution_jl/__init__.py ../LICENSE.md ../README.md ../setup.py
+	mkdir -p $@
+	cp -r ../CherenkovDeconvolution_jl ../LICENSE.md ../README.md ../setup.py $@ && touch $@
 
 clean:
 	- docker rmi -f $(TAG)
-	rm -f .IMAGE
+	rm -rf .IMAGE .DEPS
 
-.PHONY: image clean
+.PHONY: tests clean

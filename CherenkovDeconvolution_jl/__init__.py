@@ -1,3 +1,4 @@
+import numpy as np
 from importlib import reload
 from pkg_resources import resource_filename
 
@@ -23,7 +24,7 @@ def initialize():
     __jl().eval('import CherenkovDeconvolution.Methods: deconvolve, DSEA, IBU, PRUN, RUN, SVD')
 
 def deconvolve(m, X_obs, X_trn, y_trn):
-    return __jl().deconvolve(m, X_obs, X_trn, y_trn)
+    return __jl().deconvolve(m, X_obs, X_trn, np.array(y_trn) + 1)
 def DSEA(classifier, **kwargs):
     return __jl().DSEA(classifier, **kwargs)
 def IBU(binning, **kwargs):
