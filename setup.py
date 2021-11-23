@@ -18,7 +18,8 @@ setup(
     tests_require=['pytest'],
     setup_requires=['pytest-runner'],
     install_requires=[
-        'julia >= 0.5.6'
+        'julia >= 0.5.6',
+        'scikit-learn >= 1'
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -1,20 +1,26 @@
+from importlib import reload
+from pkg_resources import resource_filename
+
 def __jl():
+    from julia.api import Julia
+    jl = Julia(compiled_modules=False)
     from julia import Main
     return Main
+
+def __activate():
+    project = resource_filename(__name__, "")
+    __jl().eval(f'import Pkg; Pkg.activate("{project}")')
 
 def install(version="main"):
     import julia
     julia.install()
-    __jl().eval(f"""
-        using Pkg
-        Pkg.activate(".")
-        Pkg.add(url="https://github.com/mirkobunse/CherenkovDeconvolution.jl.git", rev="{version}")
-    """)
+    reload(julia) # reload required between julia.install and Main.eval
+    __activate()
+    __jl().eval(f'Pkg.add(url="https://github.com/mirkobunse/CherenkovDeconvolution.jl.git", rev="{version}")')
 
 def initialize():
-    __jl().eval("""
-        import CherenkovDeconvolution.Methods: deconvolve, DSEA, IBU, PRUN, RUN, SVD
-    """)
+    __activate()
+    __jl().eval('import CherenkovDeconvolution.Methods: deconvolve, DSEA, IBU, PRUN, RUN, SVD')
 
 def deconvolve(m, X_obs, X_trn, y_trn):
     return __jl().deconvolve(m, X_obs, X_trn, y_trn)
