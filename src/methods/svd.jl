@@ -42,6 +42,8 @@ The *SVD-based* deconvolution method, using a `binning` to discretize the observ
 - `fit_ratios = true`
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
+- `warn = true`
+  determines whether warnings about negative values are emitted during normalization.
 """
 struct SVD <: DiscreteMethod
     binning :: Binning
@@ -51,14 +53,16 @@ struct SVD <: DiscreteMethod
     fit_ratios :: Bool
     n_bins_y :: Int
     N :: Int
+    warn :: Bool
     SVD(binning :: Binning;
         B          :: Matrix{Float64} = Matrix{Float64}(undef, 0, 0),
         effective_rank :: Int = -1,
         epsilon_C  :: Float64 = 1e-3,
         fit_ratios :: Bool    = true,
         n_bins_y   :: Int     = -1,
-        N          :: Int     = -1
-    ) = new(binning, B, effective_rank, epsilon_C, fit_ratios, n_bins_y, N)
+        N          :: Int     = -1,
+        warn       :: Bool    = true
+    ) = new(binning, B, effective_rank, epsilon_C, fit_ratios, n_bins_y, N, warn)
 end
 
 binning(svd::SVD) = svd.binning
@@ -110,7 +114,7 @@ function deconvolve(
         f_est = f_est .* f_trn
     end
     
-    return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_est))
+    return DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_est), warn=svd.warn)
 end
 
 # regularization matrix C from the SVD approach - the square of _svd_C is similar but not

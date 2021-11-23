@@ -48,6 +48,8 @@ Like the original version, it uses a `binning` to discretize the observable feat
   is a selectable constant used in log regularisation to prevent the undefined case log(0).
 - `inspect = nothing`
   is a function `(f_k::Vector, k::Int, ldiff::Float64) -> Any` called in each iteration.
+- `warn = true`
+  determines whether warnings about negative values are emitted during normalization.
 - `fit_ratios = false` (**discouraged**)
   determines if ratios are fitted (i.e. `R` has to contain counts so that the ratio
   `f_est / f_train` is estimated) or if the probability density `f_est` is fitted directly.
@@ -64,6 +66,7 @@ struct PRUN <: DiscreteMethod
     log_constant :: Float64
     n_bins_y :: Int
     tau :: Float64
+    warn :: Bool
     function PRUN(binning :: Binning;
             acceptance_correction :: Union{Tuple{Function, Function}, Nothing} = nothing,
             ac_regularisation :: Bool     = true,
@@ -74,11 +77,12 @@ struct PRUN <: DiscreteMethod
             K                 :: Int      = 100,
             log_constant      :: Float64  = 1/18394,
             n_bins_y          :: Int      = -1,
-            tau               :: Float64  = 0.0)
+            tau               :: Float64  = 0.0,
+            warn              :: Bool     = true)
         if fit_ratios
             @warn "fit_ratios = true is an experimental feature that is discouraged for PRUN"
         end
-        return new(binning, acceptance_correction, ac_regularisation, epsilon, f_0, fit_ratios, inspect, K, log_constant, n_bins_y, tau)
+        return new(binning, acceptance_correction, ac_regularisation, epsilon, f_0, fit_ratios, inspect, K, log_constant, n_bins_y, tau, warn)
     end
 end
 
@@ -180,7 +184,7 @@ function deconvolve(
     res = optimize(df, dfc, f_0, IPNewton(), conf)
 
     # evaluation
-    f = [ DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_k)) for f_k in Optim.x_trace(res) ]
+    f = [ DeconvUtil.normalizepdf(decode_estimate(label_sanitizer, f_k), warn=prun.warn) for f_k in Optim.x_trace(res) ]
     k = Optim.iterations(res)
     epsilon = Optim.g_norm_trace(res)
     prun.inspect.(f, collect(0:k), epsilon) # make up leeway
