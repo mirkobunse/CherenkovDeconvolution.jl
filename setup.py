@@ -1,4 +1,29 @@
+from importlib import reload
 from setuptools import setup, find_packages
+from setuptools.command.install import install
+from setuptools.command.develop import develop
+
+def julia_backend(project):
+    print("CherenkovDeconvolution_jl (step 1/2): julia.install()")
+    import julia
+    julia.install()
+    reload(julia) # reload required between julia.install and Main.eval
+    print("CherenkovDeconvolution_jl (step 2/2): install package")
+    from julia.api import Julia
+    jl = Julia(compiled_modules=False)
+    from julia import Main
+    Main.eval(f'import Pkg; Pkg.activate("{project}")')
+    Main.eval(f'Pkg.add(url="https://github.com/mirkobunse/CherenkovDeconvolution.jl.git", rev="main")')
+
+class JuliaBackendInstall(install):
+    def run(self):
+        install.run(self)
+        julia_backend(self.install_lib + "CherenkovDeconvolution_jl")
+
+class JuliaBackendDevelop(develop):
+    def run(self):
+        develop.run(self)
+        julia_backend("CherenkovDeconvolution_jl")
 
 with open('README.md') as f:
     readme = f.read()
@@ -33,5 +58,9 @@ setup(
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Topic :: Scientific/Engineering :: Machine Learning'
-    ]
+    ],
+    cmdclass={
+        'install': JuliaBackendInstall,
+        'develop': JuliaBackendDevelop
+    }
 )

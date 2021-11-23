@@ -8,7 +8,6 @@ X_trn = np.random.rand(500, 5)
 y_trn = np.random.randint(3, size=500)
 
 # initialize CherenkovDeconvolution_jl
-cd.install()
 cd.initialize()
 
 # deconvolve
