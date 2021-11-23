@@ -5,6 +5,7 @@ makedocs(;
     pages = [
         "Manual" => "index.md",
         "Developer manual" => "developer-manual.md",
+        "Python wrapper" => "python-wrapper.md",
         "API reference" => "api-reference.md"
     ],
     format = Documenter.HTML(
