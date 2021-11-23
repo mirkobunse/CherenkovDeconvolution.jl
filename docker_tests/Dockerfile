@@ -14,9 +14,13 @@ RUN wget --quiet https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.
     mv julia-1.6.4 /opt && \
     ln -s /opt/julia-1.6.4/bin/julia /bin/julia
 
-WORKDIR /CherenkovDeconvolution_jl
-ADD tests.py .DEPS/ ./
-RUN pip install -e .
-
 CMD ["bash"]
 ENTRYPOINT ["python3", "tests.py"]
+
+## install the package
+WORKDIR /CherenkovDeconvolution_jl
+ADD .DEPS/ ./
+RUN pip install -e .
+
+# add the tests at the very end to speed up builds for which only the tests need to be updated
+ADD tests.py ./

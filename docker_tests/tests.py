@@ -7,9 +7,6 @@ X_obs = np.random.rand(100, 5)
 X_trn = np.random.rand(500, 5)
 y_trn = np.random.randint(3, size=500)
 
-# initialize CherenkovDeconvolution_jl
-cd.initialize()
-
 # deconvolve
 dsea = cd.DSEA(GaussianNB())
 f_est = cd.deconvolve(dsea, X_obs, X_trn, y_trn)
