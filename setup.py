@@ -9,9 +9,12 @@ def julia_backend(project):
     julia.install()
     reload(julia) # reload required between julia.install and Main.eval
     print("CherenkovDeconvolution_jl (step 2/2): install package")
-    from julia.api import Julia
-    jl = Julia(compiled_modules=False)
-    from julia import Main
+    try:
+        from julia import Main
+    except Exception as e:
+        from julia.api import Julia # retry with compiled_modules=False
+        jl = Julia(compiled_modules=False)
+        from julia import Main
     Main.eval(f'import Pkg; Pkg.activate("{project}")')
     Main.eval(f'Pkg.add(url="https://github.com/mirkobunse/CherenkovDeconvolution.jl.git", rev="main")')
 
