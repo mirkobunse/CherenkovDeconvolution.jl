@@ -30,8 +30,8 @@ run = cd.RUN(cd.TreeBinning(10)) # use up to 10 clusters
 f_run = cd.deconvolve(run, X_obs, X_trn, y_trn)
 
 # adaptive stepsizes in DSEA+
-stepsize = cd.RunStepsize(cd.TreeBinning(10); decay=true)
-dsea_plus = cd.DSEA(GaussianNB(); K=100, epsilon=1e-6, stepsize=stepsize)
+stepsize = cd.RunStepsize(cd.TreeBinning(10), decay=True)
+dsea_plus = cd.DSEA(GaussianNB(), K=100, epsilon=1e-6, stepsize=stepsize)
 f_dsea_plus = cd.deconvolve(dsea_plus, X_obs, X_trn, y_trn)
 ```
 
