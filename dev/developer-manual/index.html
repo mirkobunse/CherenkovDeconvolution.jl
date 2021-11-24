@@ -1,2 +1,69 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Developer manual · CherenkovDeconvolution.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">CherenkovDeconvolution.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Manual</a></li><li class="is-active"><a class="tocitem" href>Developer manual</a></li><li><a class="tocitem" href="../python-wrapper/">Python wrapper</a></li><li><a class="tocitem" href="../api-reference/">API reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Developer manual</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Developer manual</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/mirkobunse/CherenkovDeconvolution.jl/blob/master/docs/src/developer-manual.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Developer-manual"><a class="docs-heading-anchor" href="#Developer-manual">Developer manual</a><a id="Developer-manual-1"></a><a class="docs-heading-anchor-permalink" href="#Developer-manual" title="Permalink"></a></h1></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Manual</a><a class="docs-footer-nextpage" href="../python-wrapper/">Python wrapper »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 23 November 2021 21:59">Tuesday 23 November 2021</span>. Using Julia version 1.6.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Developer manual · CherenkovDeconvolution.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">CherenkovDeconvolution.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Manual</a></li><li class="is-active"><a class="tocitem" href>Developer manual</a><ul class="internal"><li><a class="tocitem" href="#Deconvolution-methods"><span>Deconvolution methods</span></a></li><li><a class="tocitem" href="#Binnings"><span>Binnings</span></a></li><li><a class="tocitem" href="#Stepsizes"><span>Stepsizes</span></a></li></ul></li><li><a class="tocitem" href="../python-wrapper/">Python wrapper</a></li><li><a class="tocitem" href="../api-reference/">API reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Developer manual</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Developer manual</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/mirkobunse/CherenkovDeconvolution.jl/blob/master/docs/src/developer-manual.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Developer-manual"><a class="docs-heading-anchor" href="#Developer-manual">Developer manual</a><a id="Developer-manual-1"></a><a class="docs-heading-anchor-permalink" href="#Developer-manual" title="Permalink"></a></h1><p>This section is meant to give an idea of how to implement new algorithms in the framework of this package. Examples of all the following descriptions can be found in the original source code.</p><h2 id="Deconvolution-methods"><a class="docs-heading-anchor" href="#Deconvolution-methods">Deconvolution methods</a><a id="Deconvolution-methods-1"></a><a class="docs-heading-anchor-permalink" href="#Deconvolution-methods" title="Permalink"></a></h2><p>You can create a new deconvolution method in two steps:</p><ul><li>create a subtype of <a href="../api-reference/#CherenkovDeconvolution.Methods.DeconvolutionMethod"><code>DeconvolutionMethod</code></a></li><li>implement the <a href="../api-reference/#CherenkovDeconvolution.Methods.deconvolve"><code>deconvolve</code></a> function for this subtype</li></ul><pre><code class="language-julia">struct MyNewMethod &lt;: DeconvolutionMethod
+    ...
+end
+
+function CherenkovDeconvolution.deconvolve(
+        m::MyNewMethod,
+        X_obs::AbstractArray{T,N},
+        X_trn::AbstractArray{T,N},
+        y_trn::AbstractVector{I}
+        ) where {T,N,I&lt;:Integer}
+    ...
+end</code></pre><p>To create a <em>discrete</em> deconvolution method, which solves <code>g = R * f</code>, you can alternatively create a subtype of <a href="../api-reference/#CherenkovDeconvolution.Methods.DiscreteMethod"><code>DiscreteMethod</code></a>, for which the <a href="../api-reference/#CherenkovDeconvolution.Methods.deconvolve"><code>deconvolve</code></a> function is allowed to look differently:</p><pre><code class="language-julia">struct MyNewDiscreteMethod &lt;: DiscreteMethod
+    ...
+end
+
+function CherenkovDeconvolution.deconvolve(
+        m::MyNewDiscreteMethod,
+        R::Matrix{T_R},
+        g::Vector{T_g},
+        label_sanitizer::LabelSanitizer,
+        f_trn::Vector{T_f},
+        f_0::Union{Vector{T_f},Nothing}
+        ) where {T_R&lt;:Number,T_g&lt;:Number,T_f&lt;:Number}
+    ...
+end</code></pre><h2 id="Binnings"><a class="docs-heading-anchor" href="#Binnings">Binnings</a><a id="Binnings-1"></a><a class="docs-heading-anchor-permalink" href="#Binnings" title="Permalink"></a></h2><p><a href="../api-reference/#CherenkovDeconvolution.Binnings.Binning"><code>Binning</code></a> methods are created in a very similar fashion, but they require one extra step: a <a href="../api-reference/#CherenkovDeconvolution.Binnings.BinningDiscretizer"><code>BinningDiscretizer</code></a> must be derived from the binning and this discretizer must be used in an implementation of <a href="../api-reference/#Discretizers.encode"><code>encode</code></a>.</p><pre><code class="language-julia">struct MyNewBinning &lt;: Binning
+    ...
+end
+
+struct MyNewDiscretizer{T} &lt;: BinningDiscretizer{T}
+    ...
+end
+
+function CherenkovDeconvolution.BinningDiscretizer(
+        b::MyNewBinning,
+        X_trn::AbstractMatrix{T},
+        y_trn::AbstractVector{I}
+        ) where {T,I&lt;:Integer}
+    ...
+    return MyNewDiscretizer{T}(...)
+end
+
+function Discretizers.encode(
+        d::MyNewDiscretizer{T},
+        X_obs::AbstractMatrix{T}
+        ) where T
+    ...
+end</code></pre><h2 id="Stepsizes"><a class="docs-heading-anchor" href="#Stepsizes">Stepsizes</a><a id="Stepsizes-1"></a><a class="docs-heading-anchor-permalink" href="#Stepsizes" title="Permalink"></a></h2><p><a href="../api-reference/#CherenkovDeconvolution.Stepsizes.Stepsize"><code>Stepsize</code></a> methods require an implementation of the <a href="../api-reference/#CherenkovDeconvolution.Stepsizes.value"><code>value</code></a> function. Optionally, they can also implement <a href="../api-reference/#CherenkovDeconvolution.Stepsizes.initialize!"><code>initialize!</code></a>.</p><pre><code class="language-julia">struct MyNewStepsize &lt;: Stepsize
+    ...
+end
+
+function CherenkovDeconvolution.value(
+        s::MyNewStepsize,
+        k::Int,
+        p::Vector{Float64},
+        f::Vector{Float64},
+        a::Float64)
+    ...
+end
+
+# optional
+function CherenkovDeconvolution.initialize!(
+        s::MyNewStepsize,
+        X_obs::AbstractArray{T,N},
+        X_trn::AbstractArray{T,N},
+        y_trn::AbstractVector{I}
+        ) where {T,N,I&lt;:Integer}
+    ...
+end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Manual</a><a class="docs-footer-nextpage" href="../python-wrapper/">Python wrapper »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 24 November 2021 09:43">Wednesday 24 November 2021</span>. Using Julia version 1.6.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
