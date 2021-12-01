@@ -162,7 +162,7 @@ function _alpha_range(pk::Vector{Float64}, f::Vector{Float64})
     # for positive pk[i] (negative a_zero[i]), alpha has to be larger than a_zero[i]
     # for negative pk[i] (positive a_zero[i]), alpha has to be smaller than a_zero[i]
     a_min = maximum(vcat(a_zero[a_zero .< 0], 0)) # vcat selects a_min = 0 if no pk[i]>0 is present
-    a_max = minimum(a_zero[a_zero .>= 0])
+    a_max = minimum(vcat(a_zero[a_zero .>= 0], 0))
     return a_min, a_max
 end
 
