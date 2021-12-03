@@ -133,7 +133,7 @@ end
 # chi2s
 @testset "Chi Square distance" begin
     for _ in 1:10
-        num_bins  = rand(1:100)
+        num_bins  = rand(2:100)
         a = rand(-100:1000, num_bins)
         b = rand(0:100, num_bins)
         @test DeconvUtil.chi2s(a, b) >= 0
