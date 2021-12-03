@@ -174,7 +174,16 @@ function deconvolve(
         D = Matrix(Diagonal(real.(complex.(eigen_H.values) .^ (-1/2)))) # D^(-1/2)
 
         # eigendecomposition of transformed Tikhonov matrix: C2 == U_C*S*U_C'
-        eigen_C = eigen(Symmetric( D*U' * C * U*D ))
+        eigen_C = try
+            eigen(Symmetric( D*U' * C * U*D ))
+        catch any_error
+            if isa(any_error, ArgumentError)
+                @warn "Cannot decompose C in iteration $(k) due to an $(any_error)"
+                break
+            else
+                rethrow() # re-throw any_error that is not an ArgumentError
+            end
+        end
 
         # select tau (special case: no regularization if n_df == m)
         tau = run.n_df < m ? _tau(run.n_df, eigen_C.values) : 0.0
