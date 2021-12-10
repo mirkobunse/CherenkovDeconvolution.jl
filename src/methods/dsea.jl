@@ -90,7 +90,7 @@ function deconvolve(
         ) where {I<:Integer}
 
     # sanitize and check the arguments
-    n_bins_y = max(dsea.n_bins_y, maximum(y_trn)) # number of classes/bins
+    n_bins_y = max(dsea.n_bins_y, expected_n_bins_y(y_trn)) # number of classes/bins
     try
         check_arguments(X_obs, X_trn, y_trn)
     catch exception

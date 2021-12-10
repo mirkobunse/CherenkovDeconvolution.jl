@@ -60,7 +60,27 @@ function `f` from a transfer matrix `R` and an observed density `g`.
 abstract type DiscreteMethod <: DeconvolutionMethod end
 
 """
-    LabelSanitizer(y_trn, n_bins=maximum(y_trn))
+    expected_n_bins_y(y::AbstractVector{I<:Integer})
+    expected_n_bins_y(m::DiscreteMethod)
+
+Return the number of target bins that is to be expected from either a discrete
+DeconvolutionMethod `m` or a vector of labels `y`.
+
+The expectation of a method `m` is typically determined by it's configuration;
+a pre-specified number of bins is to be expected.
+
+The expectation of a label vector `y` ensures that missing numbers between `1`
+and `maximum(y)` are assumed to be valid bins that just do not occur in `y`.
+It further ensures that indices starting at `0` (as it is typical in Python)
+will be interpreted as indices starting at `1` (as it is typical in Julia). This
+behaviour is implemented as:
+
+    expected_n_bins_y(y) = maximum(y) + (minimum(y) == 0)
+"""
+expected_n_bins_y(y::AbstractVector{I}) where {I<:Integer} = maximum(y) + (minimum(y) == 0)
+
+"""
+    LabelSanitizer(y_trn, n_bins=expected_n_bins_y(y_trn))
 
 A sanitizer that
 
@@ -72,7 +92,10 @@ A sanitizer that
 struct LabelSanitizer
     bins::Vector{Int} # bins that actually appear
     n_bins::Int # assumed number of bins
-    LabelSanitizer(y_trn::AbstractVector{I}, n_bins::Int=maximum(y_trn)) where {I<:Integer} =
+    LabelSanitizer(
+            y_trn::AbstractVector{I},
+            n_bins::Int=expected_n_bins_y(y_trn)
+            ) where {I<:Integer} =
         new(sort(unique(y_trn)), n_bins)
 end
 
@@ -99,7 +122,7 @@ function deconvolve(
         ) where {I<:Integer}
 
     # sanitize and check the arguments
-    n_bins_y = max(expected_n_bins_y(m), maximum(y_trn)) # number of classes/bins
+    n_bins_y = max(expected_n_bins_y(m), expected_n_bins_y(y_trn)) # number of classes/bins
     try
         check_arguments(X_obs, X_trn, y_trn)
     catch exception
@@ -232,7 +255,13 @@ Encode the prior `f_0` to be consistent with the encoded labels.
 
 **See also:** `encode_labels`, `decode_estimate`.
 """
-encode_prior(s::LabelSanitizer, f_0::AbstractVector{T}) where {T<:Number} = f_0[s.bins]
+function encode_prior(s::LabelSanitizer, f_0::AbstractVector{T}) where {T<:Number}
+    bins = s.bins
+    if minimum(bins) == 0
+        bins = bins .+ 1 # Julia indices start at one
+    end
+    return f_0[bins]
+end
 
 """
     decode_estimate(s::LabelSanitizer, f)
@@ -246,7 +275,11 @@ decode_estimate(s::LabelSanitizer, f::Vector{Float64}) where {I<:Integer} =
 
 # version for probability matrices (e.g., for DSEA contributions)
 function decode_estimate(s::LabelSanitizer, p::Matrix{Float64}) where {I<:Integer}
-    decoder = Dict(zip(1:length(s.bins), s.bins))
+    bins = s.bins
+    if minimum(bins) == 0
+        bins = bins .+ 1 # Julia indices start at one
+    end
+    decoder = Dict(zip(1:length(bins), bins))
     r = zeros(size(p, 1), s.n_bins)
     for (k, v) in decoder
         r[:, v] = p[:, k]
