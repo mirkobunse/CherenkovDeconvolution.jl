@@ -398,7 +398,7 @@ _tikhonov_binning(m::Int) =
 # deprecated syntax
 export run
 struct IdentityBinning <: Binning end
-struct IdentityDiscretizer <: BinningDiscretizer{Int}
+struct IdentityDiscretizer <: BinningDiscretizer
     bins :: Vector{Int}
 end
 Binnings.BinningDiscretizer(b::IdentityBinning, X_trn, y_trn) =

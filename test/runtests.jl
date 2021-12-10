@@ -11,20 +11,6 @@ using
 
 # support for sparse Python matrices
 SCIPY_SPARSE = pyimport_conda("scipy.sparse", "scipy")
-SparseArrays.SparseMatrixCSC(x::PyObject) =
-    if pyisinstance(x, SCIPY_SPARSE.csc.csc_matrix)
-        return SparseArrays.SparseMatrixCSC( # TODO replace .+ 1 (requires a copy)
-            x.shape[1],     # m
-            x.shape[2],     # n
-            x.indptr .+ 1,  # colptr
-            x.indices .+ 1, # rowval
-            x.data          # nzval
-        ) # see https://docs.julialang.org/en/v1/stdlib/SparseArrays/#man-csc
-    else
-        throw(ArgumentError(
-            "Cannot `convert` a PyObject of type `$(x.__class__.__name__)` to an object of type SparseMatrixCSC"
-        ))
-    end
 
 Random.seed!(42) # make tests reproducible
 

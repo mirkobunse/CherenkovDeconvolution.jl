@@ -26,8 +26,8 @@ y_train = y_train[train_order]
 # sparse copies from Julia and Python
 X_train_sparse = sparse(X_train)
 X_data_sparse = sparse(X_data)
-X_train_scipy = SparseMatrixCSC(SCIPY_SPARSE.csc_matrix(X_train))
-X_data_scipy = SparseMatrixCSC(SCIPY_SPARSE.csc_matrix(X_data))
+X_train_scipy = SCIPY_SPARSE.csc_matrix(X_train)
+X_data_scipy = SCIPY_SPARSE.csc_matrix(X_data)
 
 @testset "Binnings.TreeBinning" begin
     seed = rand(UInt32)
@@ -68,7 +68,7 @@ end
     @test x_data == x_data_sparse
 
     Random.seed!(seed)
-    kd_scipy = BinningDiscretizer(KMeansBinning(3), SparseMatrixCSC(X_train_scipy), y_train)
+    kd_scipy = BinningDiscretizer(KMeansBinning(3), X_train_scipy, y_train)
     x_data_scipy = encode(kd, X_data_scipy)
     @test x_data == x_data_scipy
 end

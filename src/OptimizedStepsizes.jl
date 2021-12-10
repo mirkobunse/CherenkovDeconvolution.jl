@@ -171,7 +171,7 @@ struct BufferBinning <: Binning
     buffer :: Vector{Vector{Int}}
     bins :: Vector{Int}
 end
-struct BufferDiscretizer <: BinningDiscretizer{Int}
+struct BufferDiscretizer <: BinningDiscretizer
     buffer :: Vector{Vector{Int}}
     bins :: Vector{Int}
 end
