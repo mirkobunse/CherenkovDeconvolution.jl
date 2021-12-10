@@ -76,18 +76,18 @@ end
 # ScikitLearn.jl goes mad when another sub-type of AbstractArray is used.
 deconvolve(
         dsea::DSEA,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer} =
-    deconvolve(dsea, convert(Array, X_obs), convert(Array, X_trn), convert(Vector, y_trn))
+        ) where {I<:Integer} =
+    deconvolve(dsea, X_obs, X_trn, convert(Vector, y_trn))
 
 function deconvolve(
         dsea::DSEA,
-        X_obs::Array{T,N},
-        X_trn::Array{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::Vector{I}
-        ) where {T,N,I<:Integer}
+        ) where {I<:Integer}
 
     # sanitize and check the arguments
     n_bins_y = max(dsea.n_bins_y, maximum(y_trn)) # number of classes/bins

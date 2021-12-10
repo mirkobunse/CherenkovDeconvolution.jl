@@ -84,17 +84,17 @@ trained on the features `X_trn` and the corresponding labels `y_trn`.
 """
 deconvolve(
         m::DeconvolutionMethod,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer} =
+        ) where {I<:Integer} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 
 # discrete methods actually deconvolve from R and g, so the general API must wrap them
 function deconvolve(
         m::DiscreteMethod,
-        X_obs::AbstractArray,
-        X_trn::AbstractArray,
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
         ) where {I<:Integer}
 
@@ -188,16 +188,8 @@ end
 
 Throw meaningful exceptions if the input data of a deconvolution run is defective.
 """
-check_arguments(X_obs::AbstractArray{T,N}, X_trn::AbstractArray{T,N}, y_trn::AbstractVector{I}) where {T,N,I<:Integer} =
-    if size(X_obs, 2) != size(X_trn, 2)
-        throw(ArgumentError("X_obs and X_trn do not have the same number of features"))
-    elseif size(X_trn, 1) != length(y_trn)
-        throw(ArgumentError("X_trn and y_trn do not represent the same number of samples"))
-    elseif size(X_trn, 1) == 0
-        throw(ArgumentError("There are no samples in the training set (X_trn, y_trn)"))
-    elseif size(X_trn, 2) == 0
-        throw(ArgumentError("There are no features in the data (X_obs, X_trn)"))
-    elseif all(y_trn .== y_trn[1])
+check_arguments(X_obs::Any, X_trn::Any, y_trn::AbstractVector{I}) where {I<:Integer} =
+    if all(y_trn .== y_trn[1])
         throw(LoneClassException(y_trn[1]))
     end
 

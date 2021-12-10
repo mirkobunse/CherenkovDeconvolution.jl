@@ -360,7 +360,7 @@ be changed. However, if for example a scikit-learn `Pipeline` object is the `cla
 the name of the step has to be provided like `:stepname__sample_weight`.
 """
 function train_and_predict_proba(classifier, sample_weight::Union{Symbol,Nothing}=:sample_weight)
-    return (X_data::Array, X_train::Array, y_train::Vector, w_train::Vector) -> begin
+    return (X_data::Any, X_train::Any, y_train::Vector, w_train::Vector) -> begin
         kwargs_fit = sample_weight == nothing ? [] : [ (sample_weight, DeconvUtil.normalizepdf(w_train)) ]
         ScikitLearn.fit!(classifier, X_train, y_train; kwargs_fit...)
         return ScikitLearn.predict_proba(classifier, X_data) # matrix of probabilities

@@ -401,9 +401,9 @@ struct IdentityBinning <: Binning end
 struct IdentityDiscretizer <: BinningDiscretizer
     bins :: Vector{Int}
 end
-Binnings.BinningDiscretizer(b::IdentityBinning, X_trn, y_trn) =
+Binnings.BinningDiscretizer(b::IdentityBinning, X_trn::Any, y_trn::Any) =
     IdentityDiscretizer(sort(unique(y_trn)))
-Binnings.encode(d::IdentityDiscretizer, X_obs) = X_obs[:]
+Binnings.encode(d::IdentityDiscretizer, X_obs::Any) = X_obs[:]
 Binnings.bins(d::IdentityDiscretizer) = d.bins
 function run(
         x_obs  :: AbstractVector{T},

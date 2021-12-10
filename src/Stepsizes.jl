@@ -68,10 +68,10 @@ training set `(X_trn, y_trn)`.
 """
 initialize!(
         s::Stepsize,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer} = s # there's nothing to prepare by default
+        ) where {I<:Integer} = s # there's nothing to prepare by default
 
 """
     ConstantStepsize(alpha)

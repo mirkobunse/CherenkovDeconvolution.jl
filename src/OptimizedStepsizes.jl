@@ -76,10 +76,10 @@ Stepsizes.value(s::DiscreteStepsize, k::Int, p::Vector{Float64}, f::Vector{Float
 
 function Stepsizes.initialize!(
         s::DiscreteStepsize,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer}
+        ) where {I<:Integer}
     # discretize the problem statement into a system of linear equations
     d = BinningDiscretizer(s.binning, X_trn, y_trn) # fit the binning strategy with labeled data
     x_obs = encode(d, X_obs) # apply it to the feature vectors
@@ -175,9 +175,9 @@ struct BufferDiscretizer <: BinningDiscretizer
     buffer :: Vector{Vector{Int}}
     bins :: Vector{Int}
 end
-Binnings.BinningDiscretizer(b::BufferBinning, X_trn, y_trn) =
+Binnings.BinningDiscretizer(b::BufferBinning, X_trn::Any, y_trn::Any) =
     BufferDiscretizer(b.buffer, b.bins) # copy
-Binnings.encode(d::BufferDiscretizer, X_obs) =
+Binnings.encode(d::BufferDiscretizer, X_obs::Any) =
     if size(X_obs, 1) == length(d.buffer[1])
         return d.buffer[1]
     elseif size(X_obs, 1) == length(d.buffer[2])
