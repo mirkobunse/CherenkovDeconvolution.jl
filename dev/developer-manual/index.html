@@ -5,10 +5,10 @@ end
 
 function CherenkovDeconvolution.deconvolve(
         m::MyNewMethod,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I&lt;:Integer}
+        ) where {I&lt;:Integer}
     ...
 end</code></pre><p>To create a <em>discrete</em> deconvolution method, which solves <code>g = R * f</code>, you can alternatively create a subtype of <a href="../api-reference/#CherenkovDeconvolution.Methods.DiscreteMethod"><code>DiscreteMethod</code></a>, for which the <a href="../api-reference/#CherenkovDeconvolution.Methods.deconvolve"><code>deconvolve</code></a> function is allowed to look differently:</p><pre><code class="language-julia">struct MyNewDiscreteMethod &lt;: DiscreteMethod
     ...
@@ -33,19 +33,16 @@ end
 
 function CherenkovDeconvolution.BinningDiscretizer(
         b::MyNewBinning,
-        X_trn::AbstractMatrix{T},
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,I&lt;:Integer}
+        ) where {I&lt;:Integer}
     ...
     return MyNewDiscretizer{T}(...)
 end
 
-function Discretizers.encode(
-        d::MyNewDiscretizer{T},
-        X_obs::AbstractMatrix{T}
-        ) where T
+function Discretizers.encode(d::MyNewDiscretizer{T}, X_obs::Any)
     ...
-end</code></pre><h2 id="Stepsizes"><a class="docs-heading-anchor" href="#Stepsizes">Stepsizes</a><a id="Stepsizes-1"></a><a class="docs-heading-anchor-permalink" href="#Stepsizes" title="Permalink"></a></h2><p><a href="../api-reference/#CherenkovDeconvolution.Stepsizes.Stepsize"><code>Stepsize</code></a> methods require an implementation of the <a href="../api-reference/#CherenkovDeconvolution.Stepsizes.value"><code>value</code></a> function. Optionally, they can also implement <a href="@ref"><code>initialize!</code></a>.</p><pre><code class="language-julia">struct MyNewStepsize &lt;: Stepsize
+end</code></pre><h2 id="Stepsizes"><a class="docs-heading-anchor" href="#Stepsizes">Stepsizes</a><a id="Stepsizes-1"></a><a class="docs-heading-anchor-permalink" href="#Stepsizes" title="Permalink"></a></h2><p><a href="../api-reference/#CherenkovDeconvolution.Stepsizes.Stepsize"><code>Stepsize</code></a> methods require an implementation of the <a href="../api-reference/#CherenkovDeconvolution.Stepsizes.value"><code>value</code></a> function. Optionally, they can also implement <a href="../api-reference/#CherenkovDeconvolution.Stepsizes.initialize_prefit!"><code>initialize_prefit!</code></a> and <a href="../api-reference/#CherenkovDeconvolution.Stepsizes.initialize_deconvolve!"><code>initialize_deconvolve!</code></a>.</p><pre><code class="language-julia">struct MyNewStepsize &lt;: Stepsize
     ...
 end
 
@@ -59,11 +56,16 @@ function CherenkovDeconvolution.value(
 end
 
 # optional
-function CherenkovDeconvolution.initialize!(
+function CherenkovDeconvolution.initialize_prefit!(
         s::MyNewStepsize,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I&lt;:Integer}
+        ) where {I&lt;:Integer}
     ...
-end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Manual</a><a class="docs-footer-nextpage" href="../python-wrapper/">Python wrapper »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 18 January 2022 15:09">Tuesday 18 January 2022</span>. Using Julia version 1.7.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end
+function CherenkovDeconvolution.initialize_deconvolve!(
+        s::MyNewStepsize,
+        X_obs::Any,
+        )
+    ...
+end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Manual</a><a class="docs-footer-nextpage" href="../python-wrapper/">Python wrapper »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 18 January 2022 16:03">Tuesday 18 January 2022</span>. Using Julia version 1.7.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
