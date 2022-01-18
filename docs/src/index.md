@@ -75,3 +75,15 @@ m = DSEA(
 
 deconvolve(m, X_obs, X_trn, y_trn) # start the deconvolution
 ```
+
+## Improving performance by pre-fitting
+
+Computing the [Binnings](api-reference.html#Binnings) for the discrete deconvolution methods typically takes a considerable amount of time. You can speed up the deconvolution of multiple observations `X_obs_1, X_obs_2, ...` by computing these binnings only once with [`prefit`](@ref):
+
+```julia
+m = RUN(TreeBinning(10))
+m_prefit = prefit(m, X_trn, y_trn) # a fitted copy; m remains unchanged!
+f_1 = deconvolve(m_prefit, X_obs_1)
+f_2 = deconvolve(m_prefit, X_obs_2)
+...
+```

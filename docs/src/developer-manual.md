@@ -17,10 +17,10 @@ end
 
 function CherenkovDeconvolution.deconvolve(
         m::MyNewMethod,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_obs::Any,
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer}
+        ) where {I<:Integer}
     ...
 end
 ```
@@ -60,17 +60,14 @@ end
 
 function CherenkovDeconvolution.BinningDiscretizer(
         b::MyNewBinning,
-        X_trn::AbstractMatrix{T},
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,I<:Integer}
+        ) where {I<:Integer}
     ...
     return MyNewDiscretizer{T}(...)
 end
 
-function Discretizers.encode(
-        d::MyNewDiscretizer{T},
-        X_obs::AbstractMatrix{T}
-        ) where T
+function Discretizers.encode(d::MyNewDiscretizer{T}, X_obs::Any)
     ...
 end
 ```
@@ -78,7 +75,7 @@ end
 
 ## Stepsizes
 
-[`Stepsize`](@ref) methods require an implementation of the [`value`](@ref) function. Optionally, they can also implement [`initialize!`](@ref).
+[`Stepsize`](@ref) methods require an implementation of the [`value`](@ref) function. Optionally, they can also implement [`initialize_prefit!`](@ref) and [`initialize_deconvolve!`](@ref).
 
 ```julia
 struct MyNewStepsize <: Stepsize
@@ -95,12 +92,17 @@ function CherenkovDeconvolution.value(
 end
 
 # optional
-function CherenkovDeconvolution.initialize!(
+function CherenkovDeconvolution.initialize_prefit!(
         s::MyNewStepsize,
-        X_obs::AbstractArray{T,N},
-        X_trn::AbstractArray{T,N},
+        X_trn::Any,
         y_trn::AbstractVector{I}
-        ) where {T,N,I<:Integer}
+        ) where {I<:Integer}
+    ...
+end
+function CherenkovDeconvolution.initialize_deconvolve!(
+        s::MyNewStepsize,
+        X_obs::Any,
+        )
     ...
 end
 ```

@@ -12,6 +12,7 @@ All deconvolution methods implement the [`deconvolve`](@ref) function.
 
 ```@docs
 deconvolve
+prefit
 DSEA
 IBU
 PRUN
@@ -81,7 +82,8 @@ encode
 
 Stepsize
 OptimizedStepsize
-initialize!
+initialize_prefit!
+initialize_deconvolve!
 value
 
 check_prior
