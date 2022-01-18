@@ -92,7 +92,7 @@ function deconvolve(
     # sanitize and check the arguments
     n_bins_y = max(dsea.n_bins_y, expected_n_bins_y(y_trn)) # number of classes/bins
     try
-        check_arguments(X_obs, X_trn, y_trn)
+        check_arguments(X_trn, y_trn)
     catch exception
         if isa(exception, LoneClassException)
             f_est = recover_estimate(exception, n_bins_y)
@@ -104,7 +104,8 @@ function deconvolve(
     end
     label_sanitizer = LabelSanitizer(y_trn, n_bins_y)
     y_trn = encode_labels(label_sanitizer, y_trn) # encode labels for safety
-    initialize!(dsea.stepsize, X_obs, X_trn, y_trn)
+    initialize_prefit!(dsea.stepsize, X_trn, y_trn)
+    initialize_deconvolve!(dsea.stepsize, X_obs)
 
     # check and encode the prior
     f_0 = dsea.f_0

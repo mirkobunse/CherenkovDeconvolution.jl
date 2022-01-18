@@ -61,6 +61,8 @@ abstract type DiscreteStepsizeObjective end
 struct DiscreteStepsize{O<:DiscreteStepsizeObjective} <: Stepsize
     is_initialized :: Ref{Bool} # mutable field
     optimized_stepsize :: Ref{OptimizedStepsize}
+    discretizer :: Ref{BinningDiscretizer}
+    R :: Ref{Matrix}
     binning :: Binning
     decay :: Bool
     tau :: Float64
@@ -74,21 +76,24 @@ Stepsizes.value(s::DiscreteStepsize, k::Int, p::Vector{Float64}, f::Vector{Float
         throw(ArgumentError("The stepsize is not yet initialized"))
     end
 
-function Stepsizes.initialize!(
+function Stepsizes.initialize_prefit!(
         s::DiscreteStepsize,
-        X_obs::Any,
         X_trn::Any,
         y_trn::AbstractVector{I}
         ) where {I<:Integer}
-    # discretize the problem statement into a system of linear equations
-    d = BinningDiscretizer(s.binning, X_trn, y_trn) # fit the binning strategy with labeled data
-    x_obs = encode(d, X_obs) # apply it to the feature vectors
-    x_trn = encode(d, X_trn)
-    R = DeconvUtil.normalizetransfer(DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=false); warn=s.warn)
-    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=false) # absolute counts instead of pdf
+    s.discretizer[] = BinningDiscretizer(s.binning, X_trn, y_trn) # update the stepsize
+    x_trn = encode(s.discretizer[], X_trn)
+    s.R[] = DeconvUtil.normalizetransfer(
+        DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(s.discretizer[]), normalize=false);
+        warn = s.warn
+    )
+    return s
+end
 
-    # update the stepsize
-    s.optimized_stepsize[] = OptimizedStepsize(objective(s, R, g), s.decay)
+function Stepsizes.initialize_deconvolve!(s::DiscreteStepsize, X_obs::Any)
+    x_obs = encode(s.discretizer[], X_obs)
+    g = DeconvUtil.fit_pdf(x_obs, bins(s.discretizer[]); normalize=false) # absolute counts
+    s.optimized_stepsize[] = OptimizedStepsize(objective(s, s.R[], g), s.decay)
     s.is_initialized[] = true
     return s
 end
@@ -114,7 +119,7 @@ of the current iteration, much like in the `RUN` deconvolution method.
   specifies whether warnings should be emitted for debugging purposes.
 """
 RunStepsize(binning::Binning; decay::Bool=false, tau::Float64=0.0, warn::Bool=false) =
-    RunStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), binning, decay, tau, warn)
+    RunStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), Ref{BinningDiscretizer}(), Ref{Matrix}(), binning, decay, tau, warn)
 
 # set up the negative log likelihood function to be minimized
 function objective(s::RunStepsize, R::Matrix{Float64}, g::Vector{Int})
@@ -140,7 +145,7 @@ current iteration.
   specifies whether warnings should be emitted for debugging purposes.
 """
 LsqStepsize(binning::Binning; decay::Bool=false, tau::Float64=0.0, warn::Bool=false) =
-    LsqStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), binning, decay, tau, warn)
+    LsqStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), Ref{BinningDiscretizer}(), Ref{Matrix}(), binning, decay, tau, warn)
 
 # set up the negative least-squares function to be minimized
 function objective(s::LsqStepsize, R::Matrix{Float64}, g::Vector{Int})
@@ -197,13 +202,13 @@ function RunStepsize(
         decay  :: Bool = false ) where T<:Int
     Base.depwarn(join([
         "`RunStepsize(data, config)` is deprecated; ",
-        "please call `initialize!(RunStepsize(config), data)` instead"
+        "please call `initialize_deconvolve!(initialize_prefit!(RunStepsize(config), X_trn, y_trn), X_obs)` instead"
     ]), :RunStepsize)
     if length(x_obs) == length(x_trn)
         @warn "oh-oh"
     end
-    s = RunStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), BufferBinning([x_obs, x_trn], bins_x), decay, tau, warn)
-    return initialize!(s, reshape(x_obs, (length(x_obs), 1)), reshape(x_trn, (length(x_trn), 1)), y_trn)
+    s = RunStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), Ref{BinningDiscretizer}(), Ref{Matrix}(), BufferBinning([x_obs, x_trn], bins_x), decay, tau, warn)
+    return initialize_deconvolve!(initialize_prefit!(s, reshape(x_trn, (length(x_trn), 1)), y_trn), reshape(x_obs, (length(x_obs), 1)))
 end
 function LsqStepsize(
         x_obs  :: AbstractVector{T},
@@ -216,13 +221,13 @@ function LsqStepsize(
         decay  :: Bool = false ) where T<:Int
     Base.depwarn(join([
         "`LsqStepsize(data, config)` is deprecated; ",
-        "please call `initialize!(LsqStepsize(config), data)` instead"
+        "please call `initialize_deconvolve!(initialize_prefit!(LsqStepsize(config), X_trn, y_trn), X_obs)` instead"
     ]), :LsqStepsize)
     if length(x_obs) == length(x_trn)
         @warn "oh-oh"
     end
-    s = LsqStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), BufferBinning([x_obs, x_trn], bins_x), decay, tau, warn)
-    return initialize!(s, reshape(x_obs, (length(x_obs), 1)), reshape(x_trn, (length(x_trn), 1)), y_trn)
+    s = LsqStepsize(Ref{Bool}(false), Ref{OptimizedStepsize}(), Ref{BinningDiscretizer}(), Ref{Matrix}(), BufferBinning([x_obs, x_trn], bins_x), decay, tau, warn)
+    return initialize_deconvolve!(initialize_prefit!(s, reshape(x_trn, (length(x_trn), 1)), y_trn), reshape(x_obs, (length(x_obs), 1)))
 end
 
 end # module

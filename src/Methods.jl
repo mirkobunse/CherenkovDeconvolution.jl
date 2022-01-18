@@ -40,6 +40,8 @@ export
     encode_prior,
     LabelSanitizer,
     LoneClassException,
+    PrefittedMethod,
+    prefit,
     recover_estimate
 
 export DSEA, IBU, PRUN, RUN, SVD # see src/methods/
@@ -100,10 +102,32 @@ struct LabelSanitizer
 end
 
 """
+    PrefittedMethod{T <: DiscreteMethod} <: DeconvolutionMethod
+
+A pre-fitted classical deconvolution method which estimates the density
+function `f` from a transfer matrix `R` and an observed density `g`.
+"""
+struct PrefittedMethod{
+        T <: DiscreteMethod,
+        T_R <: Number,
+        T_f <: Number
+        } <: DeconvolutionMethod
+    method :: T
+    discretizer :: BinningDiscretizer
+    R :: Matrix{T_R}
+    label_sanitizer :: LabelSanitizer
+    f_trn :: Vector{T_f}
+    f_0 :: Union{Vector{T_f}, Nothing}
+end
+
+"""
     deconvolve(m, X_obs, X_trn, y_trn)
+    deconvolve(prefit(m, X_trn, y_trn), X_obs)
 
 Deconvolve the observed features in `X_obs` with the deconvolution method `m`
 trained on the features `X_trn` and the corresponding labels `y_trn`.
+
+**See also:** `prefit`.
 """
 deconvolve(
         m::DeconvolutionMethod,
@@ -113,10 +137,16 @@ deconvolve(
         ) where {I<:Integer} =
     throw(ArgumentError("Implementation missing for $(typeof(m))")) # must be implemented for sub-types
 
-# discrete methods actually deconvolve from R and g, so the general API must wrap them
-function deconvolve(
+"""
+    prefit(m, X_trn, y_trn)
+
+Return a copy of the deconvolution method `m` which is already trained on
+the features `X_trn` and the corresponding labels `y_trn`.
+
+**See also:** `deconvolve`.
+"""
+function prefit(
         m::DiscreteMethod,
-        X_obs::Any,
         X_trn::Any,
         y_trn::AbstractVector{I}
         ) where {I<:Integer}
@@ -124,7 +154,7 @@ function deconvolve(
     # sanitize and check the arguments
     n_bins_y = max(expected_n_bins_y(m), expected_n_bins_y(y_trn)) # number of classes/bins
     try
-        check_arguments(X_obs, X_trn, y_trn)
+        check_arguments(X_trn, y_trn)
     catch exception
         if isa(exception, LoneClassException)
             f_est = recover_estimate(exception, n_bins_y)
@@ -136,7 +166,7 @@ function deconvolve(
     end
     label_sanitizer = LabelSanitizer(y_trn, n_bins_y)
     y_trn = encode_labels(label_sanitizer, y_trn) # encode labels for safety
-    initialize!(stepsize(m), X_obs, X_trn, y_trn) # initialize stepsizes
+    initialize_prefit!(stepsize(m), X_trn, y_trn) # initialize stepsizes
 
     # also check the optional prior
     f_0 = prior(m)
@@ -147,14 +177,30 @@ function deconvolve(
 
     # discretize the problem statement into a system of linear equations
     d = BinningDiscretizer(binning(m), X_trn, y_trn) # fit the binning strategy with labeled data
-    x_obs = encode(d, X_obs) # apply it to the feature vectors
     x_trn = encode(d, X_trn)
     R = DeconvUtil.fit_R(y_trn, x_trn; bins_x=bins(d), normalize=expects_normalized_R(m))
-    g = DeconvUtil.fit_pdf(x_obs, bins(d); normalize=expects_normalized_g(m))
     f_trn = DeconvUtil.fit_pdf(y_trn)
 
-    # call the actual solver (IBU, RUN, etc)
-    return deconvolve(m, R, g, label_sanitizer, f_trn, f_0)
+    return PrefittedMethod(m, d, R, label_sanitizer, f_trn, f_0)
+end
+
+# discrete methods actually deconvolve from R and g, so the general API must wrap them
+deconvolve(
+        m::DiscreteMethod,
+        X_obs::Any,
+        X_trn::Any,
+        y_trn::AbstractVector{I}
+        ) where {I<:Integer} =
+    deconvolve(prefit(m, X_trn, y_trn), X_obs)
+
+function deconvolve(
+        m::PrefittedMethod{T},
+        X_obs::Any
+        ) where {T<:DiscreteMethod}
+    x_obs = encode(m.discretizer, X_obs)
+    g = DeconvUtil.fit_pdf(x_obs, bins(m.discretizer); normalize=expects_normalized_g(m.method))
+    initialize_deconvolve!(stepsize(m.method), X_obs) # initialize stepsizes
+    deconvolve(m.method, m.R, g, m.label_sanitizer, m.f_trn, m.f_0) # call the actual solver
 end
 
 # required API for discrete methods
@@ -207,11 +253,11 @@ function recover_estimate(x::LoneClassException, n_bins::Int=1)
 end
 
 """
-    check_arguments(X_obs, X_trn, y_trn)
+    check_arguments(X_trn, y_trn)
 
 Throw meaningful exceptions if the input data of a deconvolution run is defective.
 """
-check_arguments(X_obs::Any, X_trn::Any, y_trn::AbstractVector{I}) where {I<:Integer} =
+check_arguments(X_trn::Any, y_trn::AbstractVector{I}) where {I<:Integer} =
     if all(y_trn .== y_trn[1])
         throw(LoneClassException(y_trn[1]))
     end
@@ -285,6 +331,19 @@ function decode_estimate(s::LabelSanitizer, p::Matrix{Float64}) where {I<:Intege
         r[:, v] = p[:, k]
     end
     return r
+end
+
+# deprecated syntax
+function check_arguments(
+        X_obs::Any,
+        X_trn::Any,
+        y_trn::AbstractVector{I}
+        ) where {I<:Integer}
+    Base.depwarn(join([
+        "`check_arguments(X_obs, X_trn, y_trn)` is deprecated; ",
+        "please call `check_arguments(X_trn, y_trn)` instead"
+    ]), :check_arguments)
+    return check_arguments(X_trn, y_trn)
 end
 
 end # module

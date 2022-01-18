@@ -34,7 +34,8 @@ export
     ConstantStepsize,
     DEFAULT_STEPSIZE,
     ExpDecayStepsize,
-    initialize!,
+    initialize_prefit!,
+    initialize_deconvolve!,
     MulDecayStepsize,
     Stepsize,
     value
@@ -61,17 +62,22 @@ value(s::Stepsize, k::Int, p::Vector{Float64}, f::Vector{Float64}, a::Float64) =
     throw(ArgumentError("Not implemented for type $(typeof(s))"))
 
 """
-    initialize!(s, X_obs, X_trn, y_trn)
+    initialize_prefit!(s, X_trn, y_trn)
 
-Prepare the stepsize strategy `s` with the observed features in `X_obs` and the
-training set `(X_trn, y_trn)`.
+Prepare the stepsize strategy `s` with the training set `(X_trn, y_trn)`.
+
+**See also:** `initialize_deconvolve!`.
 """
-initialize!(
-        s::Stepsize,
-        X_obs::Any,
-        X_trn::Any,
-        y_trn::AbstractVector{I}
-        ) where {I<:Integer} = s # there's nothing to prepare by default
+initialize_prefit!(s::Stepsize, X_trn::Any, y_trn::AbstractVector{I}) where {I<:Integer} = s
+
+"""
+    initialize_deconvolve!(s, X_obs)
+
+Prepare the stepsize strategy `s` with the observed features in `X_obs`.
+
+**See also:** `initialize_prefit!`.
+"""
+initialize_deconvolve!(s::Stepsize, X_obs::Any) = s # there's nothing to prepare by default
 
 """
     ConstantStepsize(alpha)
