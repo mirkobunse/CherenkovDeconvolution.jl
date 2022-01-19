@@ -27,6 +27,8 @@ Binnings are needed by the classical (discrete) deconvolution algorithms, e.g. [
 ```@docs
 TreeBinning
 KMeansBinning
+ClassificationPreprocessor
+DefaultPreprocessor
 ```
 
 ## Stepsizes

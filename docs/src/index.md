@@ -27,6 +27,16 @@ m = RUN(TreeBinning(10)) # use up to 10 clusters
 f_run = deconvolve(m, X_obs, X_trn, y_trn)
 ```
 
+You can choose to cluster prediction scores of a classifier instead of clustering the features. Clustering these scores with a [`KMeansBinning`](@ref) can be beneficial if you already know a well-performing classifier for your data which is not a decision tree.
+
+```julia
+@sk_import linear_model : LogisticRegression
+
+clf = LogisticRegression()
+m = RUN(KMeansBinning(10, ClassificationPreprocessor(clf)))
+f_run_clf = deconvolve(m, X_obs, X_trn, y_trn)
+```
+
 As you can see, all deconvolution methods are executed in the same way, through a call to the `deconvolve` function. Their configuration is further documented in the [API reference](@ref).
 
 ## Adaptive stepsizes in DSEA+

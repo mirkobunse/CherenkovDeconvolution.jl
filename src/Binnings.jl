@@ -24,7 +24,16 @@ module Binnings
 using ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall, pyimport
 
-export Binning, BinningDiscretizer, bins, encode, KMeansBinning, TreeBinning
+export
+    Binning,
+    BinningDiscretizer,
+    BinningPreprocessor,
+    bins,
+    ClassificationPreprocessor,
+    DefaultPreprocessor,
+    encode,
+    KMeansBinning,
+    TreeBinning
 
 # the following replacement for @sk_import enables precompilation
 const __KMeans = Ref{PyObject}()
@@ -47,9 +56,54 @@ Supertype of all binning strategies for observable features.
 abstract type Binning end
 
 """
-    TreeBinning(J; kwargs...)
+    abstract type BinningPreprocessor
 
-A supervised tree binning strategy with up to `J` clusters.
+Supertype of all preprocessing techniques that are applied to observable features
+before the actual `Binning`.
+"""
+abstract type BinningPreprocessor end
+
+"""
+    fit!(binning_preprocessor, X_trn, y_trn)
+
+Fit the `binning_preprocessor` to the training data `(X_trn, y_trn)`.
+"""
+fit!(p::BinningPreprocessor, X::Any, y::AbstractVector{I}) where {I<:Integer} = p
+
+"""
+    transform(binning_preprocessor, X_obs)
+
+Apply the `binning_preprocessor` to the observed data `X_obs`.
+"""
+transform(p::BinningPreprocessor, X::Any, y::AbstractVector{I}) where {I<:Integer} =
+    throw(ArgumentError("Implementation missing for $(typeof(p))")) # must be implemented for sub-types
+
+"""
+    type DefaultPreprocessor <: BinningPreprocessor
+
+A default preprocessor that does not transform the data.
+"""
+struct DefaultPreprocessor <: BinningPreprocessor end
+transform(p::DefaultPreprocessor, X::Any) = X # do nothing
+
+"""
+    ClassificationPreprocessor(classifier)
+
+The output of a `classifier` is used as the input of the actual `Binning`.
+"""
+struct ClassificationPreprocessor <: BinningPreprocessor
+    classifier::Any
+end
+fit!(p::ClassificationPreprocessor, X::Any, y::AbstractVector{I}) where {I<:Integer} =
+    ScikitLearn.fit!(p.classifier, X, y)
+transform(p::ClassificationPreprocessor, X::Any) =
+    ScikitLearn.predict_proba(p.classifier, X)
+
+"""
+    TreeBinning(J, [preprocessor]; kwargs...)
+
+A supervised tree binning strategy with an optional `preprocessor` and up to `J`
+clusters.
 
 ### Keyword arguments
 
@@ -58,27 +112,32 @@ A supervised tree binning strategy with up to `J` clusters.
 """
 struct TreeBinning <: Binning
     J :: Int
+    preprocessor :: BinningPreprocessor
     criterion :: String
     seed :: Int
     TreeBinning(
-            J::Integer;
+            J::Integer,
+            preprocessor::BinningPreprocessor=DefaultPreprocessor();
             criterion::AbstractString="gini",
             seed::Integer=rand(UInt32)) =
-        new(J, criterion, seed)
+        new(J, preprocessor, criterion, seed)
 end
 
 """
-    KMeansBinning(J; seed=rand(UInt32))
+    KMeansBinning(J, [preprocessor]; seed=rand(UInt32))
 
-An unsupervised binning strategy with up to `J` clusters.
+An unsupervised binning strategy with an optional `preprocessor` and up to `J`
+clusters.
 """
 struct KMeansBinning <: Binning
     J :: Int
+    preprocessor :: BinningPreprocessor
     seed :: Int
     KMeansBinning(
-            J::Integer;
+            J::Integer,
+            preprocessor::BinningPreprocessor=DefaultPreprocessor();
             seed::Integer=rand(UInt32)) =
-        new(J, seed)
+        new(J, preprocessor, seed)
 end
 
 """
@@ -97,6 +156,7 @@ A discretizer that is trained with a `TreeBinning` strategy.
 struct TreeDiscretizer <: BinningDiscretizer
     model::PyObject
     indexmap::Dict{Int,Int}
+    preprocessor::BinningPreprocessor
 end
 
 # constructor of a TreeDiscretizer
@@ -105,17 +165,19 @@ function BinningDiscretizer(
         X_trn::Any,
         y_trn::AbstractVector{I}
         ) where {I<:Integer}
+    fit!(b.preprocessor, X_trn, y_trn)
+    X_trn_prep = transform(b.preprocessor, X_trn)
     classifier = DecisionTreeClassifier(
         max_leaf_nodes = convert(UInt32, b.J),
         criterion = b.criterion,
         random_state = convert(UInt32, b.seed)
     )
-    ScikitLearn.fit!(classifier, X_trn, y_trn)
+    ScikitLearn.fit!(classifier, X_trn_prep, y_trn)
 
     # create some "nice" indices 1,...n
-    x_trn = _apply(classifier, X_trn) # leaf indices, which are rather arbitrary
+    x_trn = _apply(classifier, X_trn_prep) # leaf indices, which are rather arbitrary
     indexmap = Dict(zip(unique(x_trn), 1:length(unique(x_trn))))
-    return TreeDiscretizer(classifier, indexmap)
+    return TreeDiscretizer(classifier, indexmap, b.preprocessor)
 end
 
 """
@@ -124,7 +186,7 @@ end
 Discretize `X_obs` using the leaf indices in the decision tree of `d` as discrete values.
 """
 function Discretizers.encode(d::TreeDiscretizer, X_obs::Any)
-    x_data = _apply(d.model, X_obs)
+    x_data = _apply(d.model, transform(d.preprocessor, X_obs))
     return map(i -> d.indexmap[i], convert(Vector{Int}, x_data))
 end
 
@@ -140,6 +202,7 @@ A discretizer that is trained with a `KMeansBinning` strategy.
 struct KMeansDiscretizer <: BinningDiscretizer
     model::PyObject
     J::Int
+    preprocessor::BinningPreprocessor
 end
 
 function BinningDiscretizer(
@@ -147,9 +210,11 @@ function BinningDiscretizer(
         X_trn::Any,
         y_trn::AbstractVector{I} = Int[] # y_trn is optional, here
         ) where {I<:Integer}
+    fit!(b.preprocessor, X_trn, y_trn)
+    X_trn_prep = transform(b.preprocessor, X_trn)
     clustering = KMeans(n_clusters=b.J, n_init=1, random_state=b.seed)
-    ScikitLearn.fit!(clustering, X_trn)
-    return KMeansDiscretizer(clustering, b.J)
+    ScikitLearn.fit!(clustering, X_trn_prep)
+    return KMeansDiscretizer(clustering, b.J, b.preprocessor)
 end
 
 """
@@ -158,7 +223,10 @@ end
 Discretize `X_obs` using the cluster indices of `d` as discrete values.
 """
 Discretizers.encode(d::KMeansDiscretizer, X_obs::Any) =
-    convert(Vector{Int}, ScikitLearn.predict(d.model, X_obs)) .+ 1
+    convert(
+        Vector{Int},
+        ScikitLearn.predict(d.model, transform(d.preprocessor, X_obs))
+    ) .+ 1
 
 bins(d::KMeansDiscretizer) = collect(1:d.J)
 
