@@ -1,3 +1,4 @@
+import platform
 import numpy as np
 
 # initialize the Main namespace of the Julia interpreter
@@ -8,7 +9,11 @@ except Exception as e:
     from julia.api import Julia # retry with compiled_modules=False
     jl = Julia(compiled_modules=False)
     from julia import Main
-Main.eval(f'import Pkg; Pkg.activate("{resource_filename(__name__, "")}")')
+
+fname = resource_filename(__name__, "")
+if platform.system().lower() == "windows":
+    fname = fname.replace("\\", "\\\\")
+Main.eval(f'import Pkg; Pkg.activate("{fname}")')
 Main.eval('using CherenkovDeconvolution')
 
 # CherenkovDeconvolution.Methods
