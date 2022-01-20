@@ -1,3 +1,5 @@
+import platform
+
 from importlib import reload
 from setuptools import setup, find_packages
 from setuptools.command.install import install
@@ -15,6 +17,8 @@ def julia_backend(project):
         from julia.api import Julia # retry with compiled_modules=False
         jl = Julia(compiled_modules=False)
         from julia import Main
+    if platform.system().lower() == "windows":
+        project = project.replace("\\", "\\\\")
     Main.eval(f'import Pkg; Pkg.activate("{project}")')
     Main.eval(f'Pkg.add(url="https://github.com/mirkobunse/CherenkovDeconvolution.jl.git", rev="main")')
 
