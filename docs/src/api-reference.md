@@ -31,6 +31,15 @@ ClassificationPreprocessor
 DefaultPreprocessor
 ```
 
+## Smoothings
+
+Smoothings can regularize intermediate estimates, e.g. in [`IBU`](@ref).
+
+```@docs
+NoSmoothing
+PolynomialSmoothing
+```
+
 ## Stepsizes
 
 Stepsizes can be used in [`DSEA`](@ref) and [`IBU`](@ref). Combining the [`RunStepsize`](@ref) with [`DSEA`](@ref) yields the *DSEA+* version of the algorithm. More information on stepsizes is given in the [Manual](@ref).
@@ -66,7 +75,6 @@ DeconvUtil.fit_R
 DeconvUtil.normalizetransfer
 DeconvUtil.normalizepdf
 DeconvUtil.normalizepdf!
-DeconvUtil.polynomial_smoothing
 ```
 
 ## Developer interface

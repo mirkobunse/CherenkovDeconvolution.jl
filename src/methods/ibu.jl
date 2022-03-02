@@ -31,8 +31,8 @@ the observable features.
 
 - `f_0 = ones(m) ./ m`
   defines the prior, which is uniform by default.
-- `smoothing = Base.identity`
-  is a function that optionally applies smoothing in between iterations. The operation is
+- `smoothing = NoSmoothing()`
+  is an object that optionally applies smoothing in between iterations. The operation is
   neither applied to the initial prior, nor to the final result. The function `inspect` is
   called before the smoothing is performed.
 - `K = 3`
@@ -59,7 +59,7 @@ struct IBU <: DiscreteMethod
     inspect :: Function
     K :: Int
     n_bins_y :: Int
-    smoothing :: Function # TODO smoothing types
+    smoothing :: Smoothing
     stepsize :: Stepsize
     warn :: Bool
     function IBU(binning :: Binning;
@@ -69,7 +69,7 @@ struct IBU <: DiscreteMethod
             inspect    :: Function = (args...) -> nothing,
             K          :: Int64    = 3,
             n_bins_y   :: Int      = -1,
-            smoothing  :: Function = Base.identity,
+            smoothing  :: Smoothing = NoSmoothing(),
             stepsize   :: Stepsize = DEFAULT_STEPSIZE,
             warn       :: Bool     = true)
         if fit_ratios
@@ -120,7 +120,7 @@ function deconvolve(
     for k in 1:ibu.K
 
         # == smoothing in between iterations ==
-        f_prev_smooth = k > 1 ? ibu.smoothing(f) : f # do not smooth the initial estimate
+        f_prev_smooth = k > 1 ? DeconvUtil.normalizepdf(apply(ibu.smoothing, f)) : f # do not smooth the initial estimate
         f_prev = f # unsmoothed estimate required for convergence check
         # = = = = = = = = = = = = = = = = = = =
 

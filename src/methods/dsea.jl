@@ -35,8 +35,8 @@ The *DSEA/DSEA+* deconvolution method, embedding the given `classifier`.
   thesis and in the corresponding paper.
 - `stepsize = DEFAULT_STEPSIZE`
   is the step size taken in every iteration.
-- `smoothing = Base.identity`
-  is a function that optionally applies smoothing in between iterations.
+- `smoothing = NoSmoothing()`
+  is an object that optionally applies smoothing in between iterations.
 - `K = 1`
   is the maximum number of iterations.
 - `epsilon = 0.0`
@@ -58,7 +58,7 @@ struct DSEA <: DeconvolutionMethod
     K :: Int
     n_bins_y :: Int
     return_contributions :: Bool
-    smoothing :: Function # TODO smoothing types
+    smoothing :: Smoothing
     stepsize :: Stepsize
     DSEA(c;
         epsilon      :: Float64  = 0.0,
@@ -68,7 +68,7 @@ struct DSEA <: DeconvolutionMethod
         K            :: Int64    = 1,
         n_bins_y     :: Int      = -1,
         return_contributions :: Bool = false,
-        smoothing    :: Function = Base.identity,
+        smoothing    :: Smoothing = NoSmoothing(),
         stepsize     :: Stepsize = DEFAULT_STEPSIZE
     ) = new(c, epsilon, f_0, fixweighting, inspect, K, n_bins_y, return_contributions, smoothing, stepsize)
 end
@@ -157,7 +157,7 @@ function deconvolve(
         
         # == smoothing and reweighting in between iterations ==
         if k < dsea.K
-            f = dsea.smoothing(f)
+            f = apply(dsea.smoothing, f)
             w_bin = dsea.fixweighting ? DeconvUtil.normalizepdf(f ./ f_trn, warn=false) : f
             w_trn = _dsea_weights(y_trn, w_bin)
         end

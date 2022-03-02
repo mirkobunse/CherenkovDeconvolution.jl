@@ -76,26 +76,6 @@ end
 end
 
 
-# polynomial_smoothing
-@testset "Polynomial smoothing" begin
-    for i in 1:10
-        
-        # simple order 1 check
-        num_bins = rand(100:1000)
-        f_rand   = DeconvUtil.normalizepdf(rand(num_bins))
-        f_smooth = DeconvUtil.polynomial_smoothing(1)(f_rand) # apply smoothing of order 1 to f_rand
-        diffs = f_smooth[2:end] - f_smooth[1:end-1]     # array of finite differences
-        @test all(isapprox.(diffs, mean(diffs)))        # all differences approximately equal
-        
-        # multiple smoothings return approximately same array
-        smoothing = DeconvUtil.polynomial_smoothing(i)
-        f_smooth  = smoothing(f_rand)
-        @test isapprox(f_smooth, smoothing(f_smooth), rtol=0.01) # twice smoothing does not change result
-        
-    end
-end
-
-
 # expansion / reduction
 @testset "Expansion / reduction" begin
     for _ in 1:10

@@ -27,7 +27,7 @@ This module contains a collection of deconvolution methods.
 module Methods
 
 using LinearAlgebra, Optim
-using ..DeconvUtil, ..Binnings, ..Stepsizes
+using ..DeconvUtil, ..Binnings, ..Smoothings, ..Stepsizes
 
 export
     check_arguments,

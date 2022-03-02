@@ -234,25 +234,20 @@ cov_g(g::Vector{T}, N::Integer = sum(Int64, g), assumption = :Poisson) where T<:
         throw(ArgumentError("assumption=$assumption must be either :Poisson or :multinomial"))
     end
 
-"""
-    polynomial_smoothing([o = 2, warn = true])
-
-Create a function object `f -> smoothing(f)` which smoothes its argument with a polynomial
-of order `o`. `warn` specifies if a warning is emitted when negative values returned by the
-smoothing are replaced by the average of neighboring values - a post-processing step
-proposed in [dagostini2010improved].
-"""
-polynomial_smoothing(o::Int=2, warn::Bool=true) =
-    (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
+# deprecated syntax
+function polynomial_smoothing(o::Int=2, warn::Bool=true)
+    Base.depwarn(join([
+        "`polynomial_smoothing(order)` is deprecated; ",
+        "call `PolynomialSmoothing(order)` instead"
+    ]), :KMeansDiscretizer)
+    return (f::Array{Float64,1}) -> begin # function object to be used as smoothing argument
         if o < length(f)
-            # return the values of a fitted polynomial
             _repair_smoothing( Polynomials.fit(Float64.(1:length(f)), f, o).(1:length(f)), warn )
         else
             throw(ArgumentError("Impossible smoothing order $o >= dim(f) = $(length(f))"))
         end
     end
-
-# post-process result of polynomial_smoothing (and other smoothing functions)
+end
 function _repair_smoothing(f::Vector{Float64}, warn::Bool)
     if any(f .< 0) # average values of neighbors for all values < 0
         for i in findall(f .< 0)

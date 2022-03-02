@@ -16,6 +16,7 @@ Random.seed!(42) # make tests reproducible
 
 include("DeconvUtil.jl")
 include("Binnings.jl")
+include("Smoothings.jl")
 include("Methods.jl")
 
 # execute each jupyter notebook in its own module
@@ -32,6 +33,7 @@ end
 @scoped_nbinclude "../docs/01-getting-started.ipynb"
 @scoped_nbinclude "../docs/02-inspection.ipynb"
 @scoped_nbinclude "../docs/03-adaptive-stepsize.ipynb"
+@scoped_nbinclude "../docs/04-smoothing.ipynb"
 
 # check that deprecation redirections work
 @scoped_nbinclude "deprecated/01-getting-started.ipynb"

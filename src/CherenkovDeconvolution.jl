@@ -29,6 +29,9 @@ export DeconvUtil # export as a module; do not re-export members
 include("Binnings.jl")
 @reexport using .Binnings
 
+include("Smoothings.jl")
+@reexport using .Smoothings
+
 include("Stepsizes.jl")
 @reexport using .Stepsizes
 
