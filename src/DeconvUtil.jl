@@ -41,7 +41,7 @@ export
     reduce,
     train_and_predict_proba
 
-"""    
+"""
     fit_pdf(x[, bins]; normalize=true, laplace=false)
 
 Obtain the discrete pdf of the integer array `x`, optionally specifying the array of `bins`.
@@ -124,7 +124,7 @@ normalizepdf(a::AbstractVector...; kwargs...) =
 function normalizepdf!(a::AbstractVector...; warn::Bool=true)
     arrs = [ a... ] # convert tuple to array
     single = length(a) == 1 # normalization of single array?
-    
+
     # check for NaNs and Infs
     nans = [ any(isnan.(arr)) || any(abs.(arr) .== Inf) for arr in arrs ]
     if sum(nans) > 0
@@ -139,7 +139,7 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             @warn "Normalization set NaNs and Infs in $(sum(nans)) arrays to zero"
         end
     end
-    
+
     # check for negative values
     negs = [ any(arr .< 0) for arr in arrs ]
     if sum(negs) > 0
@@ -153,7 +153,7 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             @warn "Normalization set negative values in $(sum(negs)) arrays to zero"
         end
     end
-    
+
     # check for zero sums
     sums = map(sum, arrs)
     zers = map(iszero, sums)
@@ -168,7 +168,7 @@ function normalizepdf!(a::AbstractVector...; warn::Bool=true)
             @warn "Normalization replaced $(sum(zers)) zero vectors by uniform densities"
         end
     end
-    
+
     # normalize (narrs array is created before assignment for cases where the same array is in arrs multiple times)
     narrs = [ zers[i] ? arrs[i] : arrs[i] ./ sums[i] for i in 1:length(arrs) ]
     for i in findall(.!(zers))
