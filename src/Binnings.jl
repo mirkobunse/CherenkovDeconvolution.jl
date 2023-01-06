@@ -23,6 +23,7 @@ module Binnings
 
 using ScikitLearn, Discretizers
 using PyCall: PyObject, PyArray, pycall, pyimport
+import Conda
 
 export
     Binning,
@@ -40,7 +41,9 @@ const __KMeans = Ref{PyObject}()
 const __DecisionTreeClassifier = Ref{PyObject}()
 
 function __init__()
-    ScikitLearn.Skcore.import_sklearn() # make sure sklearn is installed
+    if length(Conda.parseconda(`list scikit-learn`)) == 0
+        ScikitLearn.Skcore.import_sklearn()
+    end # make sure sklearn is installed
     global __KMeans[] = pyimport("sklearn.cluster").KMeans
     global __DecisionTreeClassifier[] = pyimport("sklearn.tree").DecisionTreeClassifier
 end

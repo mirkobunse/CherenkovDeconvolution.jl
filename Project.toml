@@ -1,9 +1,10 @@
 name = "CherenkovDeconvolution"
 uuid = "7995dc16-b5cc-11e8-32a0-21341f07e0b5"
 authors = ["Mirko Bunse <mirko.bunse@cs.tu-dortmund.de>"]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 Discretizers = "6e83dbb3-75ca-525b-8ae2-3751f0dd50b4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
@@ -16,6 +17,7 @@ ScikitLearnBase = "6e75b9c4-186b-50bd-896f-2d2496a4843e"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
+Conda = "1.7"
 Discretizers = "3.2"
 Optim = "0.22, 1"
 Polynomials = "1.1 - 3.1"
