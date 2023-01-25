@@ -188,7 +188,7 @@ function deconvolve(
     k = Optim.iterations(res)
     epsilon = Optim.g_norm_trace(res)
     prun.inspect.(f, collect(0:k), epsilon) # make up leeway
-    return f[k]
+    return f[k + 1]
 end
 
 # deprecated syntax (the IdentityBinning is defined in src/methods/run.jl)
